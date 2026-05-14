@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SocietyCrave Management</title>
+    <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+    <div id="notification" class="notification"></div>
+
+    <div id="loading" class="loading-spinner" style="display: none;">
+        <div class="spinner"></div>
+        <p>Syncing your society workspace...</p>
+    </div>
+
+    <div id="role-screen" class="role-screen">
+        <div class="role-shell">
+            <aside class="role-showcase">
+                <div class="role-badge">SocietyCrave</div>
+                <h1>Neighborhood food ordering with a calmer control center.</h1>
+                <p>Run society food operations from one place. Customers discover the right menu fast, and chefs manage listings, orders, complaints, and payments without a cluttered dashboard.</p>
+                <div class="showcase-grid">
+                    <div class="showcase-card">
+                        <strong>Smart Menu</strong>
+                        <span>Mood filters, availability windows, and chef-specific listings.</span>
+                    </div>
+                    <div class="showcase-card">
+                        <strong>Fast Orders</strong>
+                        <span>Track society orders, totals, payment method, and delivery state.</span>
+                    </div>
+                    <div class="showcase-card">
+                        <strong>Resident Ops</strong>
+                        <span>Complaints and payments stay visible in the same workflow.</span>
+                    </div>
+                </div>
+            </aside>
+
+            <div class="role-card">
+                <div class="role-badge">Entry</div>
+                <h2>Choose your role</h2>
+                <p>Pick the experience that matches what you need to do today.</p>
+                <div class="role-buttons">
+                    <button id="role-customer">Customer</button>
+                    <button id="role-chef">Chef</button>
+                </div>
+                <div class="role-note">
+                    <p><strong>Customer</strong> Browse dishes, place orders, and track society activity.</p>
+                    <p><strong>Chef</strong> Publish your menu, accept orders, and manage service inside the society.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="auth-screen" class="role-screen" style="display: none;">
+        <div class="auth-shell">
+            <div class="role-card auth-card">
+                <div class="role-badge">Access</div>
+                <h2 id="auth-title">Customer Setup</h2>
+                <p id="auth-subtitle">Tell us your society and preference so we can show the right menu.</p>
+
+                <div id="customer-auth-switch" class="role-buttons auth-switch" style="display: none;">
+                    <button type="button" id="customer-login-mode">Login</button>
+                    <button type="button" id="customer-register-mode" class="button-muted">Register</button>
+                </div>
+
+                <div id="chef-auth-switch" class="role-buttons auth-switch" style="display: none;">
+                    <button type="button" id="chef-login-mode">Already Registered</button>
+                    <button type="button" id="chef-register-mode" class="button-muted">New Chef</button>
+                </div>
+
+                <form id="auth-form" class="stack-form">
+                    <div class="form-field">
+                        <label>Society / Building Name</label>
+                        <input type="text" id="auth-society-name" placeholder="e.g., Green Heights, Sunrise Apartments" required />
+                    </div>
+
+                    <div id="auth-customer-name-wrap" class="form-field">
+                        <label>Customer Name</label>
+                        <input type="text" id="auth-customer-name" placeholder="e.g., Priya Sharma" />
+                    </div>
+
+                    <div id="auth-email-wrap" class="form-field">
+                        <label>Email</label>
+                        <input type="email" id="auth-email" placeholder="e.g., priya@example.com" />
+                    </div>
+
+                    <div id="auth-chef-email-wrap" class="form-field" style="display: none;">
+                        <label>Chef Email</label>
+                        <input type="email" id="auth-chef-email" placeholder="e.g., chef@example.com" />
+                    </div>
+
+                    <div id="auth-chef-code-wrap" class="form-field" style="display: none;">
+                        <label>Chef ID</label>
+                        <input type="text" id="auth-chef-code" placeholder="e.g., CHEF-AB12CD34" />
+                    </div>
+
+                    <div id="auth-flat-wrap" class="form-field">
+                        <label>Flat Number</label>
+                        <input type="text" id="auth-flat-number" placeholder="e.g., A-302" />
+                    </div>
+
+                    <div id="auth-chef-cuisine-wrap" class="form-field" style="display: none;">
+                        <label>Cuisine Specialty</label>
+                        <input type="text" id="auth-chef-cuisine" placeholder="e.g., South Indian, Continental, Home Style" />
+                    </div>
+
+                    <div id="auth-customer-mood-wrap" class="form-field">
+                        <label>Food Mood / Preference</label>
+                        <input type="text" id="auth-customer-mood" placeholder="e.g., Indian, Italian, Comfort, Spicy" />
+                    </div>
+
+                    <div id="auth-password-wrap" class="form-field">
+                        <label>Password</label>
+                        <input type="password" id="auth-password" placeholder="Minimum 8 chars with uppercase, lowercase, and number" />
+                    </div>
+
+                    <div id="auth-confirm-password-wrap" class="form-field">
+                        <label>Confirm Password</label>
+                        <input type="password" id="auth-confirm-password" placeholder="Re-enter your password" />
+                    </div>
+
+                    <p id="auth-hint" class="form-hint"></p>
+
+                    <div class="split-actions">
+                        <button type="button" id="auth-back" class="button-secondary">Back</button>
+                        <button type="submit" id="auth-submit">Continue</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <header class="app-header">
+        <div class="header-topbar">
+            <div class="brand-block">
+                <div class="brand-chip">Society Food Ops</div>
+                <h1>SocietyCrave</h1>
+                <p>One dashboard for community orders, chef menus, complaints, and payments.</p>
+            </div>
+
+            <div class="header-side">
+                <div class="role-info" id="role-info">
+                    <span class="role-info-label">Current session</span>
+                    <span id="current-role">None</span>
+                </div>
+                <div class="header-dropdown">
+                    <button id="quick-actions-toggle" class="small-button dropdown-toggle" type="button" aria-expanded="false" aria-controls="quick-actions-menu">
+                        <span>Open</span>
+                        <strong id="current-view-label">Dashboard</strong>
+                    </button>
+                    <div id="quick-actions-menu" class="dropdown-menu" hidden>
+                        <button type="button" data-dropdown-view="dashboard">Dashboard</button>
+                        <button type="button" data-dropdown-view="menu">Menu</button>
+                        <button type="button" data-dropdown-view="orders">Orders</button>
+                        <button type="button" data-dropdown-view="complaints">Complaints</button>
+                        <button type="button" data-dropdown-view="payments">Payments</button>
+                    </div>
+                </div>
+                <button id="logout-button" class="small-button subtle-button">Logout</button>
+            </div>
+        </div>
+
+        <div class="header-nav-row">
+            <nav class="app-nav">
+                <button data-view="dashboard" class="active">Dashboard</button>
+                <button data-view="menu">Menu</button>
+                <button data-view="orders">Orders</button>
+                <button data-view="complaints">Complaints</button>
+                <button data-view="payments">Payments</button>
+            </nav>
+            <div class="header-status">
+                <span>Live workspace</span>
+                <strong>Society operations panel</strong>
+            </div>
+        </div>
+    </header>
+
+    <main class="app-main">
+        <section id="dashboard" class="panel active-panel">
+            <div class="hero-panel">
+                <div class="hero-copy">
+                    <span class="section-kicker">Control Center</span>
+                    <h2>See the full pulse of your society food workflow at a glance.</h2>
+                    <p>Track what is listed, what is ordered, what needs attention, and what has been paid without jumping between disconnected screens.</p>
+                </div>
+                <div class="hero-aside">
+                    <div class="hero-stat">
+                        <span>Focus today</span>
+                        <strong>Fast fulfillment with less admin overhead</strong>
+                    </div>
+                </div>
+            </div>
+
+            <div class="cards-grid">
+                <div class="card metric-card">
+                    <span class="metric-label">Menu Items</span>
+                    <h2 id="count-menu">0</h2>
+                    <p>Published dishes ready for society browsing.</p>
+                </div>
+                <div class="card metric-card">
+                    <span class="metric-label">Orders</span>
+                    <h2 id="count-orders">0</h2>
+                    <p>Incoming and fulfilled orders across the society.</p>
+                </div>
+                <div class="card metric-card">
+                    <span class="metric-label">Complaints</span>
+                    <h2 id="count-complaints">0</h2>
+                    <p>Resident issues that still need visibility.</p>
+                </div>
+                <div class="card metric-card">
+                    <span class="metric-label">Payments</span>
+                    <h2 id="count-payments">0</h2>
+                    <p>Payment records captured in the system.</p>
+                </div>
+            </div>
+
+            <div class="info-box">
+                <div>
+                    <span class="section-kicker">How To Use</span>
+                    <h2>Move through menu, orders, complaints, and payments from the tabs above.</h2>
+                </div>
+                <p>Customers can discover matching dishes and place orders. Chefs can maintain their own menu and handle deliveries within the same workspace.</p>
+            </div>
+        </section>
+
+        <section id="menu" class="panel">
+            <div class="panel-header">
+                <div>
+                    <span class="section-kicker">Menu Management</span>
+                    <h2>Food Menu</h2>
+                </div>
+                <button id="refresh-menu" class="small-button">Refresh</button>
+            </div>
+
+            <div class="toolbar-card">
+                <div class="toolbar-search">
+                    <input type="text" id="menu-search" placeholder="Search dishes, cuisine, or chefs..." />
+                </div>
+                <select id="menu-category-filter">
+                    <option value="">All Categories</option>
+                    <option value="Veg">Veg</option>
+                    <option value="Non-Veg">Non-Veg</option>
+                    <option value="Dessert">Dessert</option>
+                </select>
+                <select id="menu-mood-filter">
+                    <option value="">Any Mood</option>
+                    <option value="comfort">Comfort</option>
+                    <option value="spicy">Spicy</option>
+                    <option value="healthy">Healthy</option>
+                    <option value="light">Light</option>
+                    <option value="festive">Festive</option>
+                    <option value="sweet">Sweet</option>
+                </select>
+            </div>
+
+            <div id="menu-mood-note" class="support-note"></div>
+
+            <div class="panel-grid" id="menu-content">
+                <div class="form-card" id="chef-add-food" style="display: none;">
+                    <div class="card-heading">
+                        <span class="section-kicker">Chef Workspace</span>
+                        <h3>Add Food Item</h3>
+                    </div>
+                    <form id="food-form">
+                        <label>Food Name</label>
+                        <input type="text" id="food-name" required />
+
+                        <label>Category</label>
+                        <input type="text" id="food-category" placeholder="e.g., Veg, Non-Veg, Dessert" />
+
+                        <label>Available Days</label>
+                        <div id="food-days" class="days-grid">
+                            <label><input type="checkbox" value="Monday" /> Mon</label>
+                            <label><input type="checkbox" value="Tuesday" /> Tue</label>
+                            <label><input type="checkbox" value="Wednesday" /> Wed</label>
+                            <label><input type="checkbox" value="Thursday" /> Thu</label>
+                            <label><input type="checkbox" value="Friday" /> Fri</label>
+                            <label><input type="checkbox" value="Saturday" /> Sat</label>
+                            <label><input type="checkbox" value="Sunday" /> Sun</label>
+                        </div>
+
+                        <div class="field-grid two-col">
+                            <div>
+                                <label>Opening Time</label>
+                                <input type="time" id="food-opening-time" />
+                            </div>
+                            <div>
+                                <label>Closing Time</label>
+                                <input type="time" id="food-closing-time" />
+                            </div>
+                        </div>
+
+                        <label>Sliding Window (minutes)</label>
+                        <input type="number" id="food-sliding-window" min="5" step="5" placeholder="e.g., 30" />
+
+                        <label>Description</label>
+                        <textarea id="food-description"></textarea>
+
+                        <label>Dish Photo</label>
+                        <input type="file" id="food-image" accept="image/*" />
+                        <small class="field-note">Upload a dish photo in JPG or PNG format.</small>
+
+                        <label>Price (₹)</label>
+                        <input type="number" step="0.01" id="food-price" required />
+
+                        <label>Available</label>
+                        <select id="food-available">
+                            <option value="true">Yes</option>
+                            <option value="false">No</option>
+                        </select>
+
+                        <div class="form-actions">
+                            <button type="submit">Add Item</button>
+                            <button type="button" id="clear-food">Clear</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="table-card">
+                    <div class="card-heading">
+                        <span class="section-kicker">Society Listings</span>
+                        <h3 id="menu-title">Available Food in Society</h3>
+                    </div>
+                    <div id="menu-availability-summary" class="support-note support-note-inline"></div>
+                    <div class="table-scroll menu-surface">
+                        <div id="menu-list"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="orders" class="panel">
+            <div class="panel-header">
+                <div>
+                    <span class="section-kicker">Order Flow</span>
+                    <h2>Orders</h2>
+                </div>
+                <button id="refresh-orders" class="small-button">Refresh</button>
+            </div>
+
+            <div class="panel-grid">
+                <div class="form-card" id="order-form-card">
+                    <div class="card-heading">
+                        <span class="section-kicker">Create</span>
+                        <h3 id="order-form-title">Create Food Order</h3>
+                    </div>
+                    <p id="order-form-note" class="support-note support-note-inline">
+                        Customers place orders from the society menu.
+                    </p>
+
+                    <form id="order-form">
+                        <div class="field-grid two-col">
+                            <div>
+                                <label>Customer Name</label>
+                                <input type="text" id="order-customer" required />
+                            </div>
+                            <div>
+                                <label>Flat Number</label>
+                                <input type="text" id="order-flat" required />
+                            </div>
+                        </div>
+
+                        <label>Items (from Menu)</label>
+                        <div id="order-items-list" class="muted-surface">
+                            <p class="empty-note">Items will appear here when added from menu</p>
+                        </div>
+
+                        <div class="field-grid two-col">
+                            <div>
+                                <label>Subtotal (₹)</label>
+                                <input type="number" step="0.01" id="order-subtotal" readonly class="readonly-field" />
+                            </div>
+                            <div>
+                                <label>Discount (%)</label>
+                                <input type="number" step="0.01" id="order-discount" min="0" max="100" value="0" />
+                            </div>
+                        </div>
+
+                        <div class="field-grid two-col">
+                            <div>
+                                <label>Discount Amount (₹)</label>
+                                <input type="number" step="0.01" id="order-discount-amount" readonly class="readonly-field" />
+                            </div>
+                            <div>
+                                <label>Delivery Charge (₹)</label>
+                                <input type="number" step="0.01" id="order-delivery" value="0" />
+                            </div>
+                        </div>
+
+                        <div class="total-panel">
+                            <span>Total Amount (₹)</span>
+                            <strong id="order-total-display">0</strong>
+                        </div>
+                        <input type="hidden" id="order-amount" />
+
+                        <div class="field-grid two-col">
+                            <div>
+                                <label>Payment Method</label>
+                                <select id="order-payment-method">
+                                    <option value="CASH">Cash</option>
+                                    <option value="UPI">UPI</option>
+                                    <option value="CARD">Card</option>
+                                    <option value="WALLET">Wallet</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label>Status</label>
+                                <select id="order-status">
+                                    <option>PLACED</option>
+                                    <option>ACCEPTED</option>
+                                    <option>DELIVERED</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <label>Accepted By (Chef Name)</label>
+                        <input type="text" id="order-acceptedby" placeholder="Chef name" />
+
+                        <div class="form-actions">
+                            <button type="submit">Save Order</button>
+                            <button type="button" id="clear-order">Clear</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="table-card">
+                    <div class="card-heading">
+                        <span class="section-kicker">Tracking</span>
+                        <h3 id="order-list-title">Order List</h3>
+                    </div>
+                    <div class="table-scroll">
+                        <table>
+                            <thead>
+                                <tr><th>ID</th><th>Customer</th><th>Flat</th><th>Status</th><th>Actions</th></tr>
+                            </thead>
+                            <tbody id="order-table"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="complaints" class="panel">
+            <div class="panel-header">
+                <div>
+                    <span class="section-kicker">Resident Support</span>
+                    <h2>Complaints</h2>
+                </div>
+                <button id="refresh-complaints" class="small-button">Refresh</button>
+            </div>
+
+            <div class="panel-grid">
+                <div class="form-card">
+                    <div class="card-heading">
+                        <span class="section-kicker">Capture</span>
+                        <h3>Register Complaint</h3>
+                    </div>
+                    <form id="complaint-form">
+                        <label>Title</label>
+                        <input type="text" id="complaint-title" required />
+                        <label>Description</label>
+                        <textarea id="complaint-description" required></textarea>
+                        <label>Resident</label>
+                        <input type="text" id="complaint-resident" />
+                        <label>Flat Number</label>
+                        <input type="text" id="complaint-flat" />
+                        <label>Status</label>
+                        <select id="complaint-status">
+                            <option>OPEN</option>
+                            <option>IN_PROGRESS</option>
+                            <option>RESOLVED</option>
+                        </select>
+                        <label>Assigned To</label>
+                        <input type="text" id="complaint-assigned" />
+                        <div class="form-actions">
+                            <button type="submit">Save Complaint</button>
+                            <button type="button" id="clear-complaint">Clear</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="table-card">
+                    <div class="card-heading">
+                        <span class="section-kicker">Queue</span>
+                        <h3>Complaint List</h3>
+                    </div>
+                    <div class="table-scroll">
+                        <table>
+                            <thead>
+                                <tr><th>ID</th><th>Title</th><th>Status</th><th>Flat</th><th>Actions</th></tr>
+                            </thead>
+                            <tbody id="complaint-table"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="payments" class="panel">
+            <div class="panel-header">
+                <div>
+                    <span class="section-kicker">Billing</span>
+                    <h2>Payments</h2>
+                </div>
+                <button id="refresh-payments" class="small-button">Refresh</button>
+            </div>
+
+            <div class="panel-grid">
+                <div class="form-card">
+                    <div class="card-heading">
+                        <span class="section-kicker">Record</span>
+                        <h3>Record Payment</h3>
+                    </div>
+                    <form id="payment-form">
+                        <label>Resident Name</label>
+                        <input type="text" id="payment-resident" required />
+                        <label>Flat Number</label>
+                        <input type="text" id="payment-flat" required />
+                        <label>Amount</label>
+                        <input type="number" step="0.01" id="payment-amount" required />
+                        <label>Due Date</label>
+                        <input type="date" id="payment-due" />
+                        <label>Payment Date</label>
+                        <input type="date" id="payment-date" />
+                        <label>Status</label>
+                        <select id="payment-status">
+                            <option>DUE</option>
+                            <option>PAID</option>
+                        </select>
+                        <label>Payment Method</label>
+                        <input type="text" id="payment-method" />
+                        <div class="form-actions">
+                            <button type="submit">Save Payment</button>
+                            <button type="button" id="clear-payment">Clear</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="table-card">
+                    <div class="card-heading">
+                        <span class="section-kicker">History</span>
+                        <h3>Payment Records</h3>
+                    </div>
+                    <div class="table-scroll">
+                        <table>
+                            <thead>
+                                <tr><th>ID</th><th>Resident</th><th>Amount</th><th>Status</th><th>Actions</th></tr>
+                            </thead>
+                            <tbody id="payment-table"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="app-footer">
+        <p>SocietyCrave workspace connected to the Spring Boot REST backend.</p>
+    </footer>
+
+    <script src="app.js"></script>
+</body>
+</html>

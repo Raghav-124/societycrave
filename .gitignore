@@ -1,0 +1,26 @@
+# Maven
+/target/
+!.mvn/wrapper/maven-wrapper.jar
+**/target/
+**/generated-sources/
+**/generated-test-sources/
+
+# IDE
+/.idea/
+*.iml
+*.ipr
+*.iws
+
+# macOS
+.DS_Store
+
+# Logs
+*.log
+
+# Eclipse
+.classpath
+.project
+.settings/
+
+# VS Code
+.vscode/
