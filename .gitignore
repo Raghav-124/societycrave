@@ -24,3 +24,8 @@
 
 # VS Code
 .vscode/
+
+# Env / frontend artifacts
+.env
+node_modules/
+dist/

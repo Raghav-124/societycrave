@@ -1,4 +1,4 @@
-package com.raghav.societycrave;
+package com.raghav.societycrave.controller;
 
 import com.raghav.societycrave.repository.ChefRepository;
 import com.raghav.societycrave.repository.ComplaintRepository;
@@ -6,14 +6,17 @@ import com.raghav.societycrave.repository.FoodOrderRepository;
 import com.raghav.societycrave.repository.FoodRepository;
 import com.raghav.societycrave.repository.PaymentRepository;
 import com.raghav.societycrave.repository.UserRepository;
-import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.context.annotation.Profile;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Map;
 
+@Profile("dev")
 @RestController
-public class TestController {
+@RequestMapping("/api/dev/admin")
+public class DevAdminController {
 
     private final ChefRepository chefRepository;
     private final FoodRepository foodRepository;
@@ -22,12 +25,12 @@ public class TestController {
     private final PaymentRepository paymentRepository;
     private final UserRepository userRepository;
 
-    public TestController(ChefRepository chefRepository,
-                          FoodRepository foodRepository,
-                          FoodOrderRepository foodOrderRepository,
-                          ComplaintRepository complaintRepository,
-                          PaymentRepository paymentRepository,
-                          UserRepository userRepository) {
+    public DevAdminController(ChefRepository chefRepository,
+                              FoodRepository foodRepository,
+                              FoodOrderRepository foodOrderRepository,
+                              ComplaintRepository complaintRepository,
+                              PaymentRepository paymentRepository,
+                              UserRepository userRepository) {
         this.chefRepository = chefRepository;
         this.foodRepository = foodRepository;
         this.foodOrderRepository = foodOrderRepository;
@@ -36,12 +39,7 @@ public class TestController {
         this.userRepository = userRepository;
     }
 
-    @GetMapping("/api/health")
-    public String home() {
-        return "SocietyCrave Backend Running 🚀";
-    }
-
-    @PostMapping("/api/admin/clear-non-resident-data")
+    @PostMapping("/clear-non-resident-data")
     public Map<String, Object> clearNonResidentData() {
         long chefs = chefRepository.count();
         long foods = foodRepository.count();
@@ -68,7 +66,7 @@ public class TestController {
         );
     }
 
-    @PostMapping("/api/admin/clear-all-data")
+    @PostMapping("/clear-all-data")
     public Map<String, Object> clearAllData() {
         long chefs = chefRepository.count();
         long foods = foodRepository.count();
