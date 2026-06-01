@@ -518,7 +518,7 @@
                         <span class="section-kicker">Record</span>
                         <h3 id="payment-form-title">Record Payment</h3>
                     </div>
-                    <p id="payment-form-note">Link a payment to one of your orders. The backend now derives amount and status from the linked order.</p>
+                    <p id="payment-form-note">Link a payment to one of your orders. The backend derives amount and status from the linked order, then you can use Pay Now in the table to open Razorpay Checkout.</p>
                     <form id="payment-form">
                         <label for="payment-order-id">Order</label>
                         <select id="payment-order-id" required>
@@ -538,6 +538,7 @@
                         <label>Status</label>
                         <select id="payment-status" disabled>
                             <option>DUE</option>
+                            <option>PENDING</option>
                             <option>PAID</option>
                         </select>
                         <label>Payment Method</label>
@@ -571,6 +572,7 @@
         <p>SocietyCrave workspace connected to the Spring Boot REST backend.</p>
     </footer>
 
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
     <script src="app.js"></script>
 </body>
 </html>

@@ -24,6 +24,7 @@ let chefAuthMode = 'login';
 let isAuthSubmitting = false;
 const SESSION_STORAGE_KEY = 'societycraveSession';
 const ACCESS_TOKEN_STORAGE_KEY = 'societycraveAccessToken';
+const RAZORPAY_PAYABLE_STATUSES = ['DUE', 'PENDING'];
 const weekdayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const moodCuisineMap = {
     comfort: ['home', 'north indian', 'south indian', 'punjabi', 'thali'],
@@ -616,12 +617,61 @@ function configurePaymentsView() {
 
     paymentFormCard.style.display = 'block';
     paymentFormTitle.textContent = 'Record Payment';
-    paymentFormNote.textContent = 'Choose one of your orders to create a payment. Amount and status are derived from the linked order.';
+    paymentFormNote.textContent = 'Choose one of your orders to create a payment. Amount and status are derived from the linked order, then Pay Now opens Razorpay Checkout.';
     clearPaymentForm();
 }
 
 function formatPaymentOrderOption(order) {
     return `Order #${order.id} — ₹${Number(order.totalAmount || 0).toFixed(2)} — ${order.status || 'PLACED'}`;
+}
+
+function normalizeEmail(value) {
+    return typeof value === 'string' ? value.trim().toLowerCase() : '';
+}
+
+function getPaymentStatusValue(payment) {
+    return String(payment?.status || '').trim().toUpperCase();
+}
+
+function isCustomerOwnedPayment(payment) {
+    if (currentRole !== 'Customer' || !payment || !payment.id) {
+        return false;
+    }
+    const residentEmail = normalizeEmail(payment.residentEmail);
+    const customerEmail = normalizeEmail(currentCustomerEmail);
+    return !!residentEmail && !!customerEmail && residentEmail === customerEmail;
+}
+
+function canLaunchRazorpayForPayment(payment) {
+    return currentRole === 'Customer'
+        && !!payment?.id
+        && isCustomerOwnedPayment(payment)
+        && RAZORPAY_PAYABLE_STATUSES.includes(getPaymentStatusValue(payment));
+}
+
+function mapRazorpayGatewayError(message, fallback) {
+    const raw = String(message || '').trim();
+    if (!raw) {
+        return fallback;
+    }
+    if (raw.includes('Razorpay is not enabled') || raw.includes('Razorpay keys are not configured')) {
+        return 'Online payments are not available right now. Please try again later.';
+    }
+    return raw;
+}
+
+function formatPaiseAmount(amount, currency = 'INR') {
+    const amountInMajorUnits = Number(amount || 0) / 100;
+    try {
+        return new Intl.NumberFormat('en-IN', {
+            style: 'currency',
+            currency: currency || 'INR',
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        }).format(amountInMajorUnits);
+    } catch {
+        return `${currency || 'INR'} ${amountInMajorUnits.toFixed(2)}`;
+    }
 }
 
 function getSelectedPaymentOrder() {
@@ -742,7 +792,7 @@ function clearPaymentForm() {
     form.reset();
     delete form.dataset.editId;
     document.getElementById('payment-form-title').textContent = 'Record Payment';
-    document.getElementById('payment-form-note').textContent = 'Choose one of your orders to create a payment. Amount and status are derived from the linked order.';
+    document.getElementById('payment-form-note').textContent = 'Choose one of your orders to create a payment. Amount and status are derived from the linked order, then Pay Now opens Razorpay Checkout.';
     document.getElementById('save-payment').textContent = 'Save Payment';
     document.getElementById('payment-due').value = '';
     document.getElementById('payment-method').value = '';
@@ -1095,6 +1145,10 @@ async function loadPayments() {
         const actions = currentRole === 'Chef'
             ? []
             : [
+                ...(canLaunchRazorpayForPayment(payment) ? [{
+                    label: 'Pay Now',
+                    onClick: async () => { await startRazorpayCheckout(payment); }
+                }] : []),
                 {
                     label: 'Edit',
                     onClick: () => fillPaymentForm(payment)
@@ -1108,7 +1162,7 @@ async function loadPayments() {
         tbody.appendChild(createRow([
             payment.id,
             payment.residentName,
-            payment.amount,
+            Number(payment.amount || 0).toFixed(2),
             payment.status
         ], actions));
     });
@@ -1125,11 +1179,98 @@ function fillPaymentForm(payment) {
     document.getElementById('payment-due').value = payment.dueDate || '';
     document.getElementById('payment-method').value = payment.paymentMethod || '';
     document.getElementById('payment-form-title').textContent = `Edit Payment #${payment.id}`;
-    document.getElementById('payment-form-note').textContent = 'Only payment method and due date can be changed after a payment is created.';
+    document.getElementById('payment-form-note').textContent = 'Only payment method and due date can be changed after a payment is created. Use Pay Now from the table to complete online payment.';
     document.getElementById('save-payment').textContent = 'Update Payment';
     populatePaymentOrderSelect(payment.orderId || '', { locked: true, legacy: !payment.orderId });
     document.getElementById('payment-form').dataset.editId = payment.id;
     showPanel('payments');
+}
+
+async function startRazorpayCheckout(payment) {
+    if (!canLaunchRazorpayForPayment(payment)) {
+        showNotification('This payment is not eligible for online checkout.', 'error', 4500);
+        return;
+    }
+
+    if (typeof window.Razorpay !== 'function') {
+        showNotification('Payment gateway is not available. Please try again.', 'error', 4500);
+        return;
+    }
+
+    try {
+        showLoading(true);
+        const gatewayOrder = await fetchJson(`${api.payments}/${payment.id}/razorpay/order`, {
+            method: 'POST'
+        });
+        showLoading(false);
+
+        const options = {
+            key: gatewayOrder.keyId,
+            amount: gatewayOrder.amount,
+            currency: gatewayOrder.currency,
+            order_id: gatewayOrder.razorpayOrderId,
+            name: 'SocietyCrave',
+            description: 'Payment for SocietyCrave order/payment',
+            handler: async response => {
+                await verifyRazorpayCheckout(payment.id, gatewayOrder, response);
+            },
+            modal: {
+                ondismiss: () => {
+                    showNotification('Payment checkout was closed before verification.', 'info', 3500);
+                }
+            },
+            prefill: {
+                name: currentCustomerName || payment.residentName || '',
+                email: currentCustomerEmail || payment.residentEmail || ''
+            },
+            notes: {
+                paymentId: String(payment.id)
+            },
+            theme: {
+                color: '#4338ca'
+            }
+        };
+
+        const razorpay = new window.Razorpay(options);
+        razorpay.on('payment.failed', event => {
+            const failureReason = event?.error?.description || event?.error?.reason || 'Payment could not be completed.';
+            showNotification(`Payment failed: ${failureReason}`, 'error', 5000);
+        });
+        razorpay.open();
+        showNotification(`Checkout ready for ${formatPaiseAmount(gatewayOrder.amount, gatewayOrder.currency)}.`, 'info', 3000);
+    } catch (error) {
+        showLoading(false);
+        const message = mapRazorpayGatewayError(
+            extractErrorMessage(error),
+            'Unable to start online payment. Please try again.'
+        );
+        showNotification(`Payment could not start: ${message}`, 'error', 5000);
+    }
+}
+
+async function verifyRazorpayCheckout(paymentId, gatewayOrder, response) {
+    try {
+        showLoading(true);
+        await fetchJson(`${api.payments}/${paymentId}/razorpay/verify`, {
+            method: 'POST',
+            body: JSON.stringify({
+                razorpayOrderId: response.razorpay_order_id || gatewayOrder.razorpayOrderId,
+                razorpayPaymentId: response.razorpay_payment_id,
+                razorpaySignature: response.razorpay_signature
+            })
+        });
+        showNotification('Payment verified successfully. Status updated to PAID.', 'success', 4500);
+        await loadPayments();
+        await loadDashboard();
+    } catch (error) {
+        const message = mapRazorpayGatewayError(
+            extractErrorMessage(error),
+            'Payment verification failed. Please contact support if money was debited.'
+        );
+        showNotification(`Payment verification failed: ${message}`, 'error', 5500);
+    } finally {
+        showLoading(false);
+    }
 }
 
 async function savePayment(event) {
