@@ -1,9 +1,10 @@
 package com.raghav.societycrave.controller;
 
+import com.raghav.societycrave.dto.auth.AuthResponse;
 import com.raghav.societycrave.entity.Food;
 import com.raghav.societycrave.security.JwtAuthenticatedUser;
+import com.raghav.societycrave.service.AuthService;
 import com.raghav.societycrave.service.FoodService;
-import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -16,9 +17,11 @@ import java.util.List;
 public class FoodController {
 
     private final FoodService foodService;
+    private final AuthService authService;
 
-    public FoodController(FoodService foodService) {
+    public FoodController(FoodService foodService, AuthService authService) {
         this.foodService = foodService;
+        this.authService = authService;
     }
 
     @GetMapping
@@ -67,20 +70,25 @@ public class FoodController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public Food createFood(@Valid @RequestBody Food food) {
-        return foodService.saveFood(food);
+    public Food createFood(@RequestBody Food food, Authentication authentication) {
+        JwtAuthenticatedUser principal = requireAuthenticatedUser(authentication);
+        validateRequestedSociety(food.getSocietyName(), principal.societyName());
+        return foodService.createFoodForProfile(food, resolveCurrentProfile(principal));
     }
 
     @PutMapping("/{id}")
-    public Food updateFood(@PathVariable Long id, @Valid @RequestBody Food food) {
-        food.setId(id);
-        return foodService.saveFood(food);
+    public Food updateFood(@PathVariable Long id,
+                           @RequestBody Food food,
+                           Authentication authentication) {
+        JwtAuthenticatedUser principal = requireAuthenticatedUser(authentication);
+        return foodService.updateFoodForProfile(id, food, resolveCurrentProfile(principal));
     }
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void deleteFood(@PathVariable Long id) {
-        foodService.deleteFood(id);
+    public void deleteFood(@PathVariable Long id, Authentication authentication) {
+        JwtAuthenticatedUser principal = requireAuthenticatedUser(authentication);
+        foodService.deleteFoodForProfile(id, resolveCurrentProfile(principal));
     }
 
     private String resolveAuthorizedSociety(Authentication authentication, String requestedSociety) {
@@ -102,6 +110,25 @@ public class FoodController {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Missing or invalid JWT.");
         }
         return principal;
+    }
+
+    private AuthResponse resolveCurrentProfile(JwtAuthenticatedUser principal) {
+        return authService.getCurrentProfile(
+                principal.subject(),
+                principal.role(),
+                principal.societyName()
+        );
+    }
+
+    private void validateRequestedSociety(String requestedSociety, String authenticatedSociety) {
+        String requested = normalize(requestedSociety);
+        String authenticated = normalize(authenticatedSociety);
+        if (authenticated == null || authenticated.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Session is missing society scope.");
+        }
+        if (requested != null && !requested.equalsIgnoreCase(authenticated)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Cross-society food mutation is not allowed.");
+        }
     }
 
     private String normalize(String value) {
