@@ -384,16 +384,6 @@ function validateAuthInputs() {
 }
 
 function initRoleSelection() {
-    const storedSession = localStorage.getItem(SESSION_STORAGE_KEY);
-    if (storedSession) {
-        try {
-            setAuthenticatedUser(JSON.parse(storedSession));
-            return;
-        } catch {
-            clearStoredAuth();
-        }
-    }
-
     document.getElementById('role-customer').addEventListener('click', () => {
         currentRole = 'Customer';
         customerAuthMode = 'login';
@@ -646,6 +636,13 @@ function showLoading(show = true) {
     document.getElementById('loading').style.display = show ? 'flex' : 'none';
 }
 
+function setLoadingMessage(message) {
+    const loadingText = document.querySelector('#loading p');
+    if (loadingText) {
+        loadingText.textContent = message;
+    }
+}
+
 // Debounce function for search
 function debounce(func, delay) {
     let timeoutId;
@@ -656,8 +653,9 @@ function debounce(func, delay) {
 }
 
 async function fetchJson(url, options = {}) {
-    const headers = new Headers(options.headers || {});
-    if (!headers.has('Content-Type') && options.body !== undefined) {
+    const { skipUnauthorizedHandling = false, ...fetchOptions } = options;
+    const headers = new Headers(fetchOptions.headers || {});
+    if (!headers.has('Content-Type') && fetchOptions.body !== undefined) {
         headers.set('Content-Type', 'application/json');
     }
 
@@ -666,14 +664,16 @@ async function fetchJson(url, options = {}) {
         headers.set('Authorization', `Bearer ${accessToken}`);
     }
 
-    const response = await fetch(url, { ...options, headers });
-    if (response.status === 401 && !url.startsWith('/api/auth/')) {
+    const response = await fetch(url, { ...fetchOptions, headers });
+    if (!skipUnauthorizedHandling && response.status === 401 && !url.startsWith('/api/auth/')) {
         handleUnauthorizedSession();
         throw new Error('Your session expired. Please login again.');
     }
     if (!response.ok) {
         const text = await response.text();
-        throw new Error(text || response.statusText);
+        const error = new Error(text || response.statusText);
+        error.status = response.status;
+        throw error;
     }
     const text = await response.text();
     if (!text) {
@@ -1490,10 +1490,60 @@ function setupHandlers() {
     document.getElementById('logout-button').addEventListener('click', logout);
 }
 
+async function bootstrapStoredSession() {
+    const storedToken = getStoredAccessToken();
+    const storedSession = localStorage.getItem(SESSION_STORAGE_KEY);
+
+    if (!storedToken) {
+        if (storedSession) {
+            clearStoredAuth();
+        }
+        return false;
+    }
+
+    showLoading(true);
+    setLoadingMessage('Checking session...');
+
+    try {
+        const profile = await fetchJson('/api/auth/me', { skipUnauthorizedHandling: true });
+        setAuthenticatedUser({
+            accessToken: storedToken,
+            role: profile.role,
+            displayName: profile.displayName,
+            email: profile.email,
+            chefCode: profile.chefCode,
+            flatNumber: profile.flatNumber,
+            societyName: profile.societyName,
+            chefCuisine: profile.chefCuisine,
+            customerMood: storedSession ? (() => {
+                try {
+                    const session = JSON.parse(storedSession);
+                    return session.customerMood || '';
+                } catch {
+                    return '';
+                }
+            })() : ''
+        });
+        return true;
+    } catch (error) {
+        clearStoredAuth();
+        if (error.status === 401 || error.status === 403) {
+            showNotification('Your session expired. Please login again.', 'error', 4500);
+        }
+        return false;
+    } finally {
+        showLoading(false);
+        setLoadingMessage('Syncing your society workspace...');
+    }
+}
+
 async function init() {
     setupHandlers();
     showPanel('dashboard');
-    initRoleSelection();
+    const restored = await bootstrapStoredSession();
+    if (!restored) {
+        initRoleSelection();
+    }
 }
 
 window.addEventListener('DOMContentLoaded', init);
