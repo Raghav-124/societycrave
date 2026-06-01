@@ -35,18 +35,27 @@ public class FoodOrderController {
     @GetMapping
     public List<FoodOrder> getAllOrders(Authentication authentication) {
         JwtAuthenticatedUser principal = requireAuthenticatedUser(authentication);
+        if (principal.isCustomer()) {
+            return foodOrderService.getAllOrdersForCustomer(principal.societyName(), requireCustomerEmail(principal));
+        }
         return foodOrderService.getAllOrdersForSociety(principal.societyName());
     }
 
     @GetMapping("/{id}")
     public FoodOrder getOrderById(@PathVariable Long id, Authentication authentication) {
         JwtAuthenticatedUser principal = requireAuthenticatedUser(authentication);
+        if (principal.isCustomer()) {
+            return foodOrderService.getOrderByIdForCustomer(id, principal.societyName(), requireCustomerEmail(principal));
+        }
         return foodOrderService.getOrderByIdForSociety(id, principal.societyName());
     }
 
     @GetMapping("/status")
     public List<FoodOrder> getOrdersByStatus(@RequestParam String status, Authentication authentication) {
         JwtAuthenticatedUser principal = requireAuthenticatedUser(authentication);
+        if (principal.isCustomer()) {
+            return foodOrderService.getOrdersByStatusForCustomer(status, principal.societyName(), requireCustomerEmail(principal));
+        }
         return foodOrderService.getOrdersByStatusForSociety(status, principal.societyName());
     }
 
@@ -56,6 +65,7 @@ public class FoodOrderController {
         JwtAuthenticatedUser principal = requireAuthenticatedUser(authentication);
         requireCustomer(principal, "Only customers can create orders.");
         validateRequestedSociety(order.getSocietyName(), principal.societyName());
+        String customerEmail = requireCustomerEmail(principal);
 
         AuthResponse profile = authService.getCurrentProfile(
                 principal.subject(),
@@ -65,6 +75,7 @@ public class FoodOrderController {
 
         order.setCustomerName(profile.displayName());
         order.setFlatNumber(profile.flatNumber());
+        order.setCustomerEmail(customerEmail);
         order.setSocietyName(profile.societyName());
         validateOrder(order);
         return foodOrderService.saveOrder(order);
@@ -76,7 +87,12 @@ public class FoodOrderController {
                                  Authentication authentication) {
         JwtAuthenticatedUser principal = requireAuthenticatedUser(authentication);
         requireCustomer(principal, "Only customers can edit orders.");
-        return foodOrderService.updateOrderForSociety(id, orderDetails, principal.societyName());
+        return foodOrderService.updateOrderForCustomer(
+                id,
+                orderDetails,
+                principal.societyName(),
+                requireCustomerEmail(principal)
+        );
     }
 
     @PutMapping("/{id}/status")
@@ -86,6 +102,13 @@ public class FoodOrderController {
                                        Authentication authentication) {
         JwtAuthenticatedUser principal = requireAuthenticatedUser(authentication);
         requireStatusRole(principal, status);
+        if (principal.isCustomer() && "CANCELLED".equalsIgnoreCase(normalize(status))) {
+            return foodOrderService.cancelOrderForCustomer(
+                    id,
+                    principal.societyName(),
+                    requireCustomerEmail(principal)
+            );
+        }
         return foodOrderService.updateOrderStatusForSociety(id, status, acceptedBy, principal.societyName());
     }
 
@@ -94,7 +117,11 @@ public class FoodOrderController {
     public void deleteOrder(@PathVariable Long id, Authentication authentication) {
         JwtAuthenticatedUser principal = requireAuthenticatedUser(authentication);
         requireCustomer(principal, "Only customers can delete orders.");
-        foodOrderService.deleteOrderForSociety(id, principal.societyName());
+        foodOrderService.deleteOrderForCustomer(
+                id,
+                principal.societyName(),
+                requireCustomerEmail(principal)
+        );
     }
 
     private JwtAuthenticatedUser requireAuthenticatedUser(Authentication authentication) {
@@ -133,6 +160,14 @@ public class FoodOrderController {
         if (!principal.isCustomer()) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, message);
         }
+    }
+
+    private String requireCustomerEmail(JwtAuthenticatedUser principal) {
+        String email = normalize(principal.email());
+        if (email == null || email.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Customer session is missing email identity.");
+        }
+        return email;
     }
 
     private void requireStatusRole(JwtAuthenticatedUser principal, String status) {

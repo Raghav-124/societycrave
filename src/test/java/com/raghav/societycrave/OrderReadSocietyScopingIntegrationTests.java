@@ -45,9 +45,10 @@ class OrderReadSocietyScopingIntegrationTests {
     }
 
     @Test
-    void customerSeesOnlyOrdersFromJwtSociety() throws Exception {
-        seedOrder("Raghav Agrawal", "A-101", GREEN_SOCIETY, "PLACED", "Paneer Combo");
-        seedOrder("Other Resident", "B-202", OTHER_SOCIETY, "PLACED", "Other Society Thali");
+    void customerSeesOnlyOwnOrdersFromJwtSociety() throws Exception {
+        seedOrder("Raghav Agrawal", "raghav@example.com", "A-101", GREEN_SOCIETY, "PLACED", "Paneer Combo");
+        seedOrder("Same Society Other", "other.green@example.com", "B-202", GREEN_SOCIETY, "PLACED", "Other Customer Thali");
+        seedOrder("Other Resident", "other@example.com", "C-303", OTHER_SOCIETY, "PLACED", "Other Society Thali");
 
         String token = loginCustomerToken();
 
@@ -55,30 +56,31 @@ class OrderReadSocietyScopingIntegrationTests {
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].customerEmail").value("raghav@example.com"))
                 .andExpect(jsonPath("$[0].societyName").value(GREEN_SOCIETY))
                 .andExpect(jsonPath("$[0].items").value("Paneer Combo"));
     }
 
     @Test
     void chefSeesOnlyOrdersFromJwtSociety() throws Exception {
-        seedOrder("Raghav Agrawal", "A-101", GREEN_SOCIETY, "PLACED", "Green Society Meal");
-        seedOrder("Other Resident", "B-202", OTHER_SOCIETY, "PLACED", "Other Society Meal");
+        seedOrder("Raghav Agrawal", "raghav@example.com", "A-101", GREEN_SOCIETY, "PLACED", "Green Society Meal");
+        seedOrder("Another Resident", "other.green@example.com", "B-202", GREEN_SOCIETY, "ACCEPTED", "Second Green Meal");
+        seedOrder("Other Resident", "other@example.com", "C-303", OTHER_SOCIETY, "PLACED", "Other Society Meal");
 
         String token = registerChefToken();
 
         mockMvc.perform(get("/api/orders")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(1))
-                .andExpect(jsonPath("$[0].societyName").value(GREEN_SOCIETY))
-                .andExpect(jsonPath("$[0].items").value("Green Society Meal"));
+                .andExpect(jsonPath("$.length()").value(2));
     }
 
     @Test
-    void statusFilterReturnsOnlyMatchingStatusWithinJwtSociety() throws Exception {
-        seedOrder("Raghav Agrawal", "A-101", GREEN_SOCIETY, "PLACED", "Placed Green Order");
-        seedOrder("Raghav Agrawal", "A-101", GREEN_SOCIETY, "DELIVERED", "Delivered Green Order");
-        seedOrder("Other Resident", "B-202", OTHER_SOCIETY, "PLACED", "Placed Other Order");
+    void customerStatusFilterReturnsOnlyOwnMatchingStatusWithinJwtSociety() throws Exception {
+        seedOrder("Raghav Agrawal", "raghav@example.com", "A-101", GREEN_SOCIETY, "PLACED", "Placed Green Order");
+        seedOrder("Raghav Agrawal", "raghav@example.com", "A-101", GREEN_SOCIETY, "DELIVERED", "Delivered Green Order");
+        seedOrder("Same Society Other", "other.green@example.com", "B-202", GREEN_SOCIETY, "PLACED", "Placed Other Customer Order");
+        seedOrder("Other Resident", "other@example.com", "C-303", OTHER_SOCIETY, "PLACED", "Placed Other Society Order");
 
         String token = loginCustomerToken();
 
@@ -87,31 +89,80 @@ class OrderReadSocietyScopingIntegrationTests {
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].customerEmail").value("raghav@example.com"))
                 .andExpect(jsonPath("$[0].societyName").value(GREEN_SOCIETY))
                 .andExpect(jsonPath("$[0].status").value("PLACED"))
                 .andExpect(jsonPath("$[0].items").value("Placed Green Order"));
     }
 
     @Test
-    void sameSocietyOrderByIdReturnsOrder() throws Exception {
-        FoodOrder greenOrder = seedOrder("Raghav Agrawal", "A-101", GREEN_SOCIETY, "PLACED", "Id Match Order");
+    void chefStatusFilterReturnsSameSocietyMatchingStatusOrders() throws Exception {
+        seedOrder("Raghav Agrawal", "raghav@example.com", "A-101", GREEN_SOCIETY, "PLACED", "Chef Placed Order");
+        seedOrder("Same Society Other", "other.green@example.com", "B-202", GREEN_SOCIETY, "PLACED", "Chef Other Same Society");
+        seedOrder("Same Society Delivered", "other.green2@example.com", "D-404", GREEN_SOCIETY, "DELIVERED", "Delivered Green");
+        seedOrder("Other Resident", "other@example.com", "C-303", OTHER_SOCIETY, "PLACED", "Other Society Order");
+        String token = registerChefToken();
+
+        mockMvc.perform(get("/api/orders/status")
+                        .param("status", "PLACED")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2));
+    }
+
+    @Test
+    void customerOwnOrderByIdReturnsOrder() throws Exception {
+        FoodOrder greenOrder = seedOrder("Raghav Agrawal", "raghav@example.com", "A-101", GREEN_SOCIETY, "PLACED", "Id Match Order");
         String token = loginCustomerToken();
 
         mockMvc.perform(get("/api/orders/{id}", greenOrder.getId())
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(greenOrder.getId()))
+                .andExpect(jsonPath("$.customerEmail").value("raghav@example.com"))
                 .andExpect(jsonPath("$.societyName").value(GREEN_SOCIETY));
     }
 
     @Test
-    void crossSocietyOrderByIdReturnsForbidden() throws Exception {
-        FoodOrder otherOrder = seedOrder("Other Resident", "B-202", OTHER_SOCIETY, "PLACED", "Forbidden Order");
+    void customerSameSocietyOtherCustomerOrderByIdReturnsForbidden() throws Exception {
+        FoodOrder otherOrder = seedOrder("Same Society Other", "other.green@example.com", "B-202", GREEN_SOCIETY, "PLACED", "Forbidden Same Society Order");
         String token = loginCustomerToken();
 
         mockMvc.perform(get("/api/orders/{id}", otherOrder.getId())
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void customerLegacyNullCustomerEmailOrderByIdReturnsForbidden() throws Exception {
+        FoodOrder legacyOrder = seedOrder("Legacy Resident", null, "L-101", GREEN_SOCIETY, "PLACED", "Legacy Order");
+        String token = loginCustomerToken();
+
+        mockMvc.perform(get("/api/orders/{id}", legacyOrder.getId())
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void crossSocietyOrderByIdReturnsForbidden() throws Exception {
+        FoodOrder otherOrder = seedOrder("Other Resident", "other@example.com", "B-202", OTHER_SOCIETY, "PLACED", "Forbidden Order");
+        String token = loginCustomerToken();
+
+        mockMvc.perform(get("/api/orders/{id}", otherOrder.getId())
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void chefSameSocietyOrderByIdReturnsOrder() throws Exception {
+        FoodOrder greenOrder = seedOrder("Raghav Agrawal", "raghav@example.com", "A-101", GREEN_SOCIETY, "PLACED", "Chef Id Match Order");
+        String token = registerChefToken();
+
+        mockMvc.perform(get("/api/orders/{id}", greenOrder.getId())
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(greenOrder.getId()))
+                .andExpect(jsonPath("$.societyName").value(GREEN_SOCIETY));
     }
 
     @Test
@@ -123,12 +174,14 @@ class OrderReadSocietyScopingIntegrationTests {
     }
 
     private FoodOrder seedOrder(String customerName,
+                                String customerEmail,
                                 String flatNumber,
                                 String societyName,
                                 String status,
                                 String items) {
         FoodOrder order = new FoodOrder();
         order.setCustomerName(customerName);
+        order.setCustomerEmail(customerEmail);
         order.setFlatNumber(flatNumber);
         order.setSocietyName(societyName);
         order.setStatus(status);

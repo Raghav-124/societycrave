@@ -56,6 +56,7 @@ class OrderCreationIdentityIntegrationTests {
                                 }
                                 """))
                 .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.customerEmail").value("raghav@example.com"))
                 .andExpect(jsonPath("$.societyName").value(GREEN_SOCIETY));
     }
 
@@ -89,6 +90,7 @@ class OrderCreationIdentityIntegrationTests {
                         .content("""
                                 {
                                   "customerName": "Fake Customer",
+                                  "customerEmail": "fake@example.com",
                                   "flatNumber": "X-404",
                                   "societyName": "%s",
                                   "items": "Roti, Paneer",
@@ -98,6 +100,7 @@ class OrderCreationIdentityIntegrationTests {
                                 """.formatted(GREEN_SOCIETY)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.customerName").value("Raghav Agrawal"))
+                .andExpect(jsonPath("$.customerEmail").value("raghav@example.com"))
                 .andExpect(jsonPath("$.flatNumber").value("A-101"))
                 .andExpect(jsonPath("$.societyName").value(GREEN_SOCIETY));
     }

@@ -23,6 +23,8 @@ public class FoodOrder {
     @Column(nullable = false)
     private String flatNumber;
 
+    private String customerEmail;
+
     @NotBlank(message = "Order items are mandatory")
     @Column(nullable = false, columnDefinition = "TEXT")
     private String items;
@@ -53,12 +55,13 @@ public class FoodOrder {
 
     public FoodOrder() {}
 
-    public FoodOrder(Long id, String customerName, String flatNumber, String items, BigDecimal totalAmount,
+    public FoodOrder(Long id, String customerName, String flatNumber, String customerEmail, String items, BigDecimal totalAmount,
                      String status, String acceptedBy, LocalDateTime orderTime, LocalDateTime deliveryTime,
                      BigDecimal discount, BigDecimal deliveryCharge, String paymentMethod, String societyName) {
         this.id = id;
         this.customerName = customerName;
         this.flatNumber = flatNumber;
+        this.customerEmail = customerEmail;
         this.items = items;
         this.totalAmount = totalAmount;
         this.status = status;
@@ -82,6 +85,9 @@ public class FoodOrder {
 
     public String getFlatNumber() { return flatNumber; }
     public void setFlatNumber(String flatNumber) { this.flatNumber = flatNumber; }
+
+    public String getCustomerEmail() { return customerEmail; }
+    public void setCustomerEmail(String customerEmail) { this.customerEmail = customerEmail; }
 
     public String getItems() { return items; }
     public void setItems(String items) { this.items = items; }

@@ -15,9 +15,15 @@ public interface FoodOrderRepository extends JpaRepository<FoodOrder, Long> {
 
     List<FoodOrder> findBySocietyNameIgnoreCase(String societyName);
 
+    List<FoodOrder> findBySocietyNameIgnoreCaseAndCustomerEmailIgnoreCase(String societyName, String customerEmail);
+
     List<FoodOrder> findByStatusIgnoreCaseAndSocietyNameIgnoreCase(String status, String societyName);
 
+    List<FoodOrder> findByStatusIgnoreCaseAndSocietyNameIgnoreCaseAndCustomerEmailIgnoreCase(String status, String societyName, String customerEmail);
+
     Optional<FoodOrder> findByIdAndSocietyNameIgnoreCase(Long id, String societyName);
+
+    Optional<FoodOrder> findByIdAndSocietyNameIgnoreCaseAndCustomerEmailIgnoreCase(Long id, String societyName, String customerEmail);
 
     // Find orders by customer name
     List<FoodOrder> findByCustomerNameIgnoreCase(String customerName);

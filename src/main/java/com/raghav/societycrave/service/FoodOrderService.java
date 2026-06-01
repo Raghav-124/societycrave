@@ -29,6 +29,13 @@ public class FoodOrderService {
         return foodOrderRepository.findBySocietyNameIgnoreCase(requireSocietyScope(societyName));
     }
 
+    public List<FoodOrder> getAllOrdersForCustomer(String societyName, String customerEmail) {
+        return foodOrderRepository.findBySocietyNameIgnoreCaseAndCustomerEmailIgnoreCase(
+                requireSocietyScope(societyName),
+                requireCustomerEmail(customerEmail)
+        );
+    }
+
     public FoodOrder getOrderById(Long id) {
         return foodOrderRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found with id " + id));
@@ -40,6 +47,12 @@ public class FoodOrderService {
         if (!normalizedSociety.equalsIgnoreCase(normalize(order.getSocietyName()))) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Cross-society order access is not allowed.");
         }
+        return order;
+    }
+
+    public FoodOrder getOrderByIdForCustomer(Long id, String societyName, String customerEmail) {
+        FoodOrder order = getOrderByIdForSociety(id, societyName);
+        enforceCustomerReadAccess(order, customerEmail);
         return order;
     }
 
@@ -66,6 +79,7 @@ public class FoodOrderService {
     public FoodOrder updateOrderForSociety(Long id, FoodOrder details, String societyName) {
         FoodOrder order = getOrderByIdForSociety(id, societyName);
         String trustedCustomerName = order.getCustomerName();
+        String trustedCustomerEmail = order.getCustomerEmail();
         String trustedFlatNumber = order.getFlatNumber();
         String trustedSocietyName = order.getSocietyName();
 
@@ -75,6 +89,31 @@ public class FoodOrderService {
 
         copyOrderDetails(order, details);
         order.setCustomerName(trustedCustomerName);
+        order.setCustomerEmail(trustedCustomerEmail);
+        order.setFlatNumber(trustedFlatNumber);
+        order.setSocietyName(trustedSocietyName);
+        validateSocietyChefMapping(order);
+        return foodOrderRepository.save(order);
+    }
+
+    public FoodOrder updateOrderForCustomer(Long id,
+                                            FoodOrder details,
+                                            String societyName,
+                                            String customerEmail) {
+        FoodOrder order = getOrderByIdForSociety(id, societyName);
+        enforceCustomerOwnership(order, customerEmail);
+        String trustedCustomerName = order.getCustomerName();
+        String trustedCustomerEmail = order.getCustomerEmail();
+        String trustedFlatNumber = order.getFlatNumber();
+        String trustedSocietyName = order.getSocietyName();
+
+        if ("DELIVERED".equalsIgnoreCase(order.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Delivered orders cannot be updated");
+        }
+
+        copyOrderDetails(order, details);
+        order.setCustomerName(trustedCustomerName);
+        order.setCustomerEmail(trustedCustomerEmail);
         order.setFlatNumber(trustedFlatNumber);
         order.setSocietyName(trustedSocietyName);
         validateSocietyChefMapping(order);
@@ -141,6 +180,24 @@ public class FoodOrderService {
         foodOrderRepository.delete(order);
     }
 
+    public void deleteOrderForCustomer(Long id, String societyName, String customerEmail) {
+        FoodOrder order = getOrderByIdForSociety(id, societyName);
+        enforceCustomerOwnership(order, customerEmail);
+        foodOrderRepository.delete(order);
+    }
+
+    public FoodOrder cancelOrderForCustomer(Long id, String societyName, String customerEmail) {
+        FoodOrder order = getOrderByIdForSociety(id, societyName);
+        enforceCustomerOwnership(order, customerEmail);
+        String status = "CANCELLED";
+        if (!isValidStatusTransition(order.getStatus(), status)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Invalid status transition from " + order.getStatus() + " to " + status);
+        }
+        order.setStatus(status);
+        return foodOrderRepository.save(order);
+    }
+
     public List<FoodOrder> getOrdersByStatus(String status) {
         return foodOrderRepository.findByStatusIgnoreCase(status);
     }
@@ -152,9 +209,18 @@ public class FoodOrderService {
         );
     }
 
+    public List<FoodOrder> getOrdersByStatusForCustomer(String status, String societyName, String customerEmail) {
+        return foodOrderRepository.findByStatusIgnoreCaseAndSocietyNameIgnoreCaseAndCustomerEmailIgnoreCase(
+                status,
+                requireSocietyScope(societyName),
+                requireCustomerEmail(customerEmail)
+        );
+    }
+
     private void normalizeOrder(FoodOrder order) {
         if (order.getCustomerName() != null) order.setCustomerName(order.getCustomerName().trim());
         if (order.getFlatNumber() != null) order.setFlatNumber(order.getFlatNumber().trim());
+        if (order.getCustomerEmail() != null) order.setCustomerEmail(order.getCustomerEmail().trim());
         if (order.getItems() != null) order.setItems(order.getItems().trim());
         if (order.getAcceptedBy() != null) order.setAcceptedBy(order.getAcceptedBy().trim());
         if (order.getPaymentMethod() != null) order.setPaymentMethod(order.getPaymentMethod().trim());
@@ -164,6 +230,7 @@ public class FoodOrderService {
     private void copyOrderDetails(FoodOrder target, FoodOrder source) {
         if (source.getCustomerName() != null) target.setCustomerName(source.getCustomerName().trim());
         if (source.getFlatNumber() != null) target.setFlatNumber(source.getFlatNumber().trim());
+        if (source.getCustomerEmail() != null) target.setCustomerEmail(source.getCustomerEmail().trim());
         if (source.getItems() != null) target.setItems(source.getItems().trim());
         if (source.getTotalAmount() != null) target.setTotalAmount(source.getTotalAmount());
         if (source.getStatus() != null) target.setStatus(source.getStatus().toUpperCase());
@@ -212,12 +279,44 @@ public class FoodOrderService {
                         && normalize(chef.getSocietyName()).equalsIgnoreCase(normalizedSociety));
     }
 
+    private void enforceCustomerOwnership(FoodOrder order, String customerEmail) {
+        String normalizedEmail = normalize(customerEmail);
+        String orderEmail = normalize(order.getCustomerEmail());
+
+        if (orderEmail.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Customers can only manage orders with verified ownership.");
+        }
+
+        if (!orderEmail.equalsIgnoreCase(normalizedEmail)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Customers can only manage their own orders.");
+        }
+    }
+
+    private void enforceCustomerReadAccess(FoodOrder order, String customerEmail) {
+        String normalizedEmail = requireCustomerEmail(customerEmail);
+        String orderEmail = normalize(order.getCustomerEmail());
+        if (orderEmail.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Customers can only view orders with verified ownership.");
+        }
+        if (!orderEmail.equalsIgnoreCase(normalizedEmail)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Customers can only view their own orders.");
+        }
+    }
+
     private String requireSocietyScope(String societyName) {
         String normalizedSociety = normalize(societyName);
         if (normalizedSociety.isBlank()) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Session is missing society scope.");
         }
         return normalizedSociety;
+    }
+
+    private String requireCustomerEmail(String customerEmail) {
+        String normalizedEmail = normalize(customerEmail);
+        if (normalizedEmail.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Customer session is missing email identity.");
+        }
+        return normalizedEmail;
     }
 
     private String normalize(String value) {
