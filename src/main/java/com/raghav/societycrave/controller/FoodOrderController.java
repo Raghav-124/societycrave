@@ -33,18 +33,21 @@ public class FoodOrderController {
     }
 
     @GetMapping
-    public List<FoodOrder> getAllOrders() {
-        return foodOrderService.getAllOrders();
+    public List<FoodOrder> getAllOrders(Authentication authentication) {
+        JwtAuthenticatedUser principal = requireAuthenticatedUser(authentication);
+        return foodOrderService.getAllOrdersForSociety(principal.societyName());
     }
 
     @GetMapping("/{id}")
-    public FoodOrder getOrderById(@PathVariable Long id) {
-        return foodOrderService.getOrderById(id);
+    public FoodOrder getOrderById(@PathVariable Long id, Authentication authentication) {
+        JwtAuthenticatedUser principal = requireAuthenticatedUser(authentication);
+        return foodOrderService.getOrderByIdForSociety(id, principal.societyName());
     }
 
     @GetMapping("/status")
-    public List<FoodOrder> getOrdersByStatus(@RequestParam String status) {
-        return foodOrderService.getOrdersByStatus(status);
+    public List<FoodOrder> getOrdersByStatus(@RequestParam String status, Authentication authentication) {
+        JwtAuthenticatedUser principal = requireAuthenticatedUser(authentication);
+        return foodOrderService.getOrdersByStatusForSociety(status, principal.societyName());
     }
 
     @PostMapping

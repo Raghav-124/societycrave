@@ -25,9 +25,22 @@ public class FoodOrderService {
         return foodOrderRepository.findAll();
     }
 
+    public List<FoodOrder> getAllOrdersForSociety(String societyName) {
+        return foodOrderRepository.findBySocietyNameIgnoreCase(requireSocietyScope(societyName));
+    }
+
     public FoodOrder getOrderById(Long id) {
         return foodOrderRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found with id " + id));
+    }
+
+    public FoodOrder getOrderByIdForSociety(Long id, String societyName) {
+        String normalizedSociety = requireSocietyScope(societyName);
+        FoodOrder order = getOrderById(id);
+        if (!normalizedSociety.equalsIgnoreCase(normalize(order.getSocietyName()))) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Cross-society order access is not allowed.");
+        }
+        return order;
     }
 
     public FoodOrder saveOrder(FoodOrder order) {
@@ -85,6 +98,13 @@ public class FoodOrderService {
         return foodOrderRepository.findByStatusIgnoreCase(status);
     }
 
+    public List<FoodOrder> getOrdersByStatusForSociety(String status, String societyName) {
+        return foodOrderRepository.findByStatusIgnoreCaseAndSocietyNameIgnoreCase(
+                status,
+                requireSocietyScope(societyName)
+        );
+    }
+
     private void normalizeOrder(FoodOrder order) {
         if (order.getCustomerName() != null) order.setCustomerName(order.getCustomerName().trim());
         if (order.getFlatNumber() != null) order.setFlatNumber(order.getFlatNumber().trim());
@@ -135,13 +155,25 @@ public class FoodOrderService {
     }
 
     private boolean isChefInSameSociety(String chefName, String societyName) {
-        String normalizedChefName = chefName == null ? "" : chefName.trim();
-        String normalizedSociety = societyName == null ? "" : societyName.trim();
+        String normalizedChefName = normalize(chefName);
+        String normalizedSociety = normalize(societyName);
         return chefRepository.findAll()
                 .stream()
                 .anyMatch(chef -> chef.getChefName() != null
                         && chef.getSocietyName() != null
-                        && chef.getChefName().trim().equalsIgnoreCase(normalizedChefName)
-                        && chef.getSocietyName().trim().equalsIgnoreCase(normalizedSociety));
+                        && normalize(chef.getChefName()).equalsIgnoreCase(normalizedChefName)
+                        && normalize(chef.getSocietyName()).equalsIgnoreCase(normalizedSociety));
+    }
+
+    private String requireSocietyScope(String societyName) {
+        String normalizedSociety = normalize(societyName);
+        if (normalizedSociety.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Session is missing society scope.");
+        }
+        return normalizedSociety;
+    }
+
+    private String normalize(String value) {
+        return value == null ? "" : value.trim();
     }
 }

@@ -6,11 +6,18 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface FoodOrderRepository extends JpaRepository<FoodOrder, Long> {
 
     // Find orders by status (PLACED, ACCEPTED, DELIVERED)
     List<FoodOrder> findByStatusIgnoreCase(String status);
+
+    List<FoodOrder> findBySocietyNameIgnoreCase(String societyName);
+
+    List<FoodOrder> findByStatusIgnoreCaseAndSocietyNameIgnoreCase(String status, String societyName);
+
+    Optional<FoodOrder> findByIdAndSocietyNameIgnoreCase(Long id, String societyName);
 
     // Find orders by customer name
     List<FoodOrder> findByCustomerNameIgnoreCase(String customerName);
