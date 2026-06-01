@@ -70,21 +70,27 @@ public class FoodOrderController {
     }
 
     @PutMapping("/{id}")
-    public FoodOrder updateOrder(@PathVariable Long id, @Valid @RequestBody FoodOrder orderDetails) {
-        return foodOrderService.updateOrder(id, orderDetails);
+    public FoodOrder updateOrder(@PathVariable Long id,
+                                 @Valid @RequestBody FoodOrder orderDetails,
+                                 Authentication authentication) {
+        JwtAuthenticatedUser principal = requireAuthenticatedUser(authentication);
+        return foodOrderService.updateOrderForSociety(id, orderDetails, principal.societyName());
     }
 
     @PutMapping("/{id}/status")
     public FoodOrder updateOrderStatus(@PathVariable Long id,
                                        @RequestParam String status,
-                                       @RequestParam(value = "acceptedBy", required = false) String acceptedBy) {
-        return foodOrderService.updateOrderStatus(id, status, acceptedBy);
+                                       @RequestParam(value = "acceptedBy", required = false) String acceptedBy,
+                                       Authentication authentication) {
+        JwtAuthenticatedUser principal = requireAuthenticatedUser(authentication);
+        return foodOrderService.updateOrderStatusForSociety(id, status, acceptedBy, principal.societyName());
     }
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void deleteOrder(@PathVariable Long id) {
-        foodOrderService.deleteOrder(id);
+    public void deleteOrder(@PathVariable Long id, Authentication authentication) {
+        JwtAuthenticatedUser principal = requireAuthenticatedUser(authentication);
+        foodOrderService.deleteOrderForSociety(id, principal.societyName());
     }
 
     private JwtAuthenticatedUser requireAuthenticatedUser(Authentication authentication) {

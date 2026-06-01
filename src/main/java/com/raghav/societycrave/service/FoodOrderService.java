@@ -63,8 +63,50 @@ public class FoodOrderService {
         return foodOrderRepository.save(order);
     }
 
+    public FoodOrder updateOrderForSociety(Long id, FoodOrder details, String societyName) {
+        FoodOrder order = getOrderByIdForSociety(id, societyName);
+        String trustedCustomerName = order.getCustomerName();
+        String trustedFlatNumber = order.getFlatNumber();
+        String trustedSocietyName = order.getSocietyName();
+
+        if ("DELIVERED".equalsIgnoreCase(order.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Delivered orders cannot be updated");
+        }
+
+        copyOrderDetails(order, details);
+        order.setCustomerName(trustedCustomerName);
+        order.setFlatNumber(trustedFlatNumber);
+        order.setSocietyName(trustedSocietyName);
+        validateSocietyChefMapping(order);
+        return foodOrderRepository.save(order);
+    }
+
     public FoodOrder updateOrderStatus(Long id, String status, String acceptedBy) {
         FoodOrder order = getOrderById(id);
+        status = status.toUpperCase();
+        if (!isValidStatusTransition(order.getStatus(), status)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Invalid status transition from " + order.getStatus() + " to " + status);
+        }
+        order.setStatus(status);
+        if ("ACCEPTED".equals(status) && acceptedBy != null && !acceptedBy.isBlank()) {
+            String acceptedByTrimmed = acceptedBy.trim();
+            if (!isChefInSameSociety(acceptedByTrimmed, order.getSocietyName())) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "Chef must belong to the same society as the customer order."
+                );
+            }
+            order.setAcceptedBy(acceptedByTrimmed);
+        }
+        if ("DELIVERED".equals(status)) {
+            order.setDeliveryTime(LocalDateTime.now());
+        }
+        return foodOrderRepository.save(order);
+    }
+
+    public FoodOrder updateOrderStatusForSociety(Long id, String status, String acceptedBy, String societyName) {
+        FoodOrder order = getOrderByIdForSociety(id, societyName);
         status = status.toUpperCase();
         if (!isValidStatusTransition(order.getStatus(), status)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
@@ -92,6 +134,11 @@ public class FoodOrderService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found with id " + id);
         }
         foodOrderRepository.deleteById(id);
+    }
+
+    public void deleteOrderForSociety(Long id, String societyName) {
+        FoodOrder order = getOrderByIdForSociety(id, societyName);
+        foodOrderRepository.delete(order);
     }
 
     public List<FoodOrder> getOrdersByStatus(String status) {
