@@ -15,6 +15,8 @@ import org.springframework.test.web.servlet.MvcResult;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Locale;
+import java.util.UUID;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -157,8 +159,9 @@ class OrderReadSocietyScopingIntegrationTests {
     }
 
     private String registerChefToken() throws Exception {
-        String email = "order-read-chef+" + System.nanoTime() + "@example.com";
-        String flatNumber = "Y-" + (100 + (int) (System.nanoTime() % 900));
+        String suffix = uniqueSuffix();
+        String email = "order-read-chef+" + suffix + "@example.com";
+        String flatNumber = "Y-" + suffix.toUpperCase(Locale.ROOT);
 
         MvcResult result = mockMvc.perform(post("/api/auth/chefs/register")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -177,5 +180,9 @@ class OrderReadSocietyScopingIntegrationTests {
 
         JsonNode json = objectMapper.readTree(result.getResponse().getContentAsString());
         return json.get("accessToken").asText();
+    }
+
+    private String uniqueSuffix() {
+        return UUID.randomUUID().toString().substring(0, 8);
     }
 }

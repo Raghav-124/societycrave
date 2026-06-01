@@ -12,6 +12,9 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+import java.util.Locale;
+import java.util.UUID;
+
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -155,8 +158,9 @@ class OrderCreationIdentityIntegrationTests {
     }
 
     private ChefTokenRegistration registerChefToken() throws Exception {
-        String email = "order-chef+" + System.nanoTime() + "@example.com";
-        String flatNumber = "Z-" + (100 + (int) (System.nanoTime() % 900));
+        String suffix = uniqueSuffix();
+        String email = "order-chef+" + suffix + "@example.com";
+        String flatNumber = "Z-" + suffix.toUpperCase(Locale.ROOT);
         String displayName = "Order Chef";
 
         MvcResult result = mockMvc.perform(post("/api/auth/chefs/register")
@@ -180,6 +184,10 @@ class OrderCreationIdentityIntegrationTests {
                 displayName,
                 flatNumber
         );
+    }
+
+    private String uniqueSuffix() {
+        return UUID.randomUUID().toString().substring(0, 8);
     }
 
     private record ChefTokenRegistration(String token, String displayName, String flatNumber) {

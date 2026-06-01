@@ -14,6 +14,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import java.math.BigDecimal;
+import java.util.Locale;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -260,8 +262,9 @@ class FoodMutationScopingIntegrationTests {
     }
 
     private ChefRegistration registerChef(String displayName, String cuisine, String societyName) throws Exception {
-        String email = displayName.toLowerCase().replace(" ", ".") + "+" + System.nanoTime() + "@example.com";
-        String flatNumber = "F-" + (100 + (int) (System.nanoTime() % 900));
+        String suffix = uniqueSuffix();
+        String email = displayName.toLowerCase(Locale.ROOT).replace(" ", ".") + "+" + suffix + "@example.com";
+        String flatNumber = "F-" + suffix.toUpperCase(Locale.ROOT);
 
         MvcResult result = mockMvc.perform(post("/api/auth/chefs/register")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -325,6 +328,10 @@ class FoodMutationScopingIntegrationTests {
 
         JsonNode json = objectMapper.readTree(result.getResponse().getContentAsString());
         return json.get("accessToken").asText();
+    }
+
+    private String uniqueSuffix() {
+        return UUID.randomUUID().toString().substring(0, 8);
     }
 
     private record ChefRegistration(String token,
