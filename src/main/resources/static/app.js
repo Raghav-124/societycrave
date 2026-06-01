@@ -20,6 +20,9 @@ let orderCart = [];
 let allFoods = [];   
 let customerAuthMode = 'login';
 let chefAuthMode = 'login';
+let isAuthSubmitting = false;
+const SESSION_STORAGE_KEY = 'societycraveSession';
+const ACCESS_TOKEN_STORAGE_KEY = 'societycraveAccessToken';
 const weekdayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const moodCuisineMap = {
     comfort: ['home', 'north indian', 'south indian', 'punjabi', 'thali'],
@@ -167,11 +170,55 @@ function setAuthenticatedUser(profile) {
             `Customer (${currentCustomerName}, ${currentCustomerMood || 'Any Mood'}) - ${currentSociety}`;
     }
 
-    localStorage.setItem('societycraveSession', JSON.stringify(profile));
+    if (profile.accessToken) {
+        localStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, profile.accessToken);
+    }
+    localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(profile));
     document.body.classList.add('role-selected');
     document.getElementById('role-screen').style.display = 'none';
     document.getElementById('auth-screen').style.display = 'none';
     enterApp();
+}
+
+function clearStoredAuth() {
+    localStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY);
+    localStorage.removeItem(SESSION_STORAGE_KEY);
+}
+
+function resetInMemoryAuthState() {
+    currentRole = null;
+    currentCustomerName = null;
+    currentCustomerEmail = null;
+    currentCustomerFlatNumber = null;
+    currentCustomerMood = null;
+    currentChefName = null;
+    currentChefCode = null;
+    currentChefFlatNumber = null;
+    currentChefCuisine = null;
+    currentSociety = null;
+    orderCart = [];
+    allFoods = [];
+    allFoodsForFiltering = [];
+}
+
+function returnToRoleSelection() {
+    document.getElementById('current-role').textContent = 'None';
+    document.body.classList.remove('role-selected');
+    document.getElementById('role-screen').style.display = 'flex';
+    document.getElementById('auth-screen').style.display = 'none';
+    showPanel('dashboard');
+}
+
+function getStoredAccessToken() {
+    const token = localStorage.getItem(ACCESS_TOKEN_STORAGE_KEY);
+    return token && token.trim() ? token.trim() : null;
+}
+
+function handleUnauthorizedSession(message = 'Your session expired. Please login again.') {
+    resetInMemoryAuthState();
+    clearStoredAuth();
+    returnToRoleSelection();
+    showNotification(message, 'error', 4500);
 }
 
 function configureRoleSetup() {
@@ -239,20 +286,111 @@ function configureRoleSetup() {
         : (isCustomerRegister
             ? 'Password must be at least 8 characters with uppercase, lowercase, and a number.'
             : 'Use your registered email and password. Mood still controls menu matching in your society.');
+
+    document.getElementById('auth-submit').textContent = isChef
+        ? (isChefRegister ? 'Register Chef' : 'Login as Chef')
+        : (isCustomerRegister ? 'Register Customer' : 'Login as Customer');
 }
 
 function resetAuthForm() {
     document.getElementById('auth-form').reset();
 }
 
+function setDefaultSocietyValue() {
+    const societyInput = document.getElementById('auth-society-name');
+    if (!societyInput.value.trim()) {
+        societyInput.value = 'Green Valley Residency';
+    }
+}
+
+function setAuthSubmitState(submitting) {
+    isAuthSubmitting = submitting;
+    const authSubmit = document.getElementById('auth-submit');
+    const authBack = document.getElementById('auth-back');
+    const switchButtons = [
+        document.getElementById('customer-login-mode'),
+        document.getElementById('customer-register-mode'),
+        document.getElementById('chef-login-mode'),
+        document.getElementById('chef-register-mode'),
+        document.getElementById('role-customer'),
+        document.getElementById('role-chef')
+    ];
+
+    authSubmit.disabled = submitting;
+    authBack.disabled = submitting;
+    switchButtons.forEach(button => {
+        if (button) {
+            button.disabled = submitting;
+        }
+    });
+
+    if (submitting) {
+        authSubmit.dataset.originalLabel = authSubmit.textContent;
+        authSubmit.textContent = 'Please wait...';
+    } else if (authSubmit.dataset.originalLabel) {
+        authSubmit.textContent = authSubmit.dataset.originalLabel;
+        delete authSubmit.dataset.originalLabel;
+    }
+}
+
+function validateAuthInputs() {
+    const societyName = document.getElementById('auth-society-name').value.trim();
+    const password = document.getElementById('auth-password').value.trim();
+
+    if (!currentRole) {
+        throw new Error('Please choose Customer or Chef first.');
+    }
+
+    if (!societyName) {
+        throw new Error('Society name is required.');
+    }
+
+    if (!password) {
+        throw new Error('Password is required.');
+    }
+
+    if (currentRole === 'Chef') {
+        if (chefAuthMode === 'register') {
+            if (!document.getElementById('auth-customer-name').value.trim()) {
+                throw new Error('Chef name is required.');
+            }
+            if (!document.getElementById('auth-chef-email').value.trim()) {
+                throw new Error('Chef email is required.');
+            }
+            if (!document.getElementById('auth-flat-number').value.trim()) {
+                throw new Error('Flat number is required.');
+            }
+            if (!document.getElementById('auth-chef-cuisine').value.trim()) {
+                throw new Error('Cuisine specialty is required.');
+            }
+        } else if (!document.getElementById('auth-chef-code').value.trim()) {
+            throw new Error('Chef ID is required.');
+        }
+        return;
+    }
+
+    if (customerAuthMode === 'register') {
+        if (!document.getElementById('auth-customer-name').value.trim()) {
+            throw new Error('Customer name is required.');
+        }
+        if (!document.getElementById('auth-flat-number').value.trim()) {
+            throw new Error('Flat number is required.');
+        }
+    }
+
+    if (!document.getElementById('auth-email').value.trim()) {
+        throw new Error('Email is required.');
+    }
+}
+
 function initRoleSelection() {
-    const storedSession = localStorage.getItem('societycraveSession');
+    const storedSession = localStorage.getItem(SESSION_STORAGE_KEY);
     if (storedSession) {
         try {
             setAuthenticatedUser(JSON.parse(storedSession));
             return;
         } catch {
-            localStorage.removeItem('societycraveSession');
+            clearStoredAuth();
         }
     }
 
@@ -260,6 +398,7 @@ function initRoleSelection() {
         currentRole = 'Customer';
         customerAuthMode = 'login';
         resetAuthForm();
+        setDefaultSocietyValue();
         document.getElementById('role-screen').style.display = 'none';
         document.getElementById('auth-screen').style.display = 'flex';
         configureRoleSetup();
@@ -269,6 +408,7 @@ function initRoleSelection() {
         currentRole = 'Chef';
         chefAuthMode = 'login';
         resetAuthForm();
+        setDefaultSocietyValue();
         document.getElementById('role-screen').style.display = 'none';
         document.getElementById('auth-screen').style.display = 'flex';
         configureRoleSetup();
@@ -303,6 +443,9 @@ function initRoleSelection() {
 
     document.getElementById('auth-form').addEventListener('submit', async (event) => {
         event.preventDefault();
+        if (isAuthSubmitting) {
+            return;
+        }
         const password = document.getElementById('auth-password').value.trim();
         const confirmPassword = document.getElementById('auth-confirm-password').value.trim();
         const requireConfirm = (currentRole === 'Chef' && chefAuthMode === 'register') ||
@@ -314,6 +457,9 @@ function initRoleSelection() {
         }
 
         try {
+            validateAuthInputs();
+            setAuthSubmitState(true);
+            showLoading(true);
             if (currentRole === 'Chef') {
                 let profile;
                 if (chefAuthMode === 'register') {
@@ -341,6 +487,7 @@ function initRoleSelection() {
                     showNotification(`Welcome back, ${profile.displayName}.`, 'success');
                 }
                 setAuthenticatedUser({
+                    accessToken: profile.accessToken,
                     role: 'Chef',
                     displayName: profile.displayName,
                     email: profile.email,
@@ -375,6 +522,7 @@ function initRoleSelection() {
                     showNotification('Customer login successful.', 'success');
                 }
                 setAuthenticatedUser({
+                    accessToken: profile.accessToken,
                     role: 'Customer',
                     displayName: profile.displayName,
                     email: profile.email,
@@ -386,6 +534,9 @@ function initRoleSelection() {
             resetAuthForm();
         } catch (error) {
             showNotification(extractErrorMessage(error), 'error', 4500);
+        } finally {
+            setAuthSubmitState(false);
+            showLoading(false);
         }
     });
 }
@@ -394,7 +545,13 @@ function extractErrorMessage(error) {
     const raw = String(error.message || '').trim();
     try {
         const parsed = JSON.parse(raw);
-        return parsed.message || raw;
+        if (parsed.errors && typeof parsed.errors === 'object') {
+            const firstError = Object.values(parsed.errors).find(Boolean);
+            if (firstError) {
+                return String(firstError);
+            }
+        }
+        return parsed.message || parsed.error || raw;
     } catch {
         return raw;
     }
@@ -453,28 +610,9 @@ function syncOrderIdentity() {
 }
 
 function logout() {
-    currentRole = null;
-    currentCustomerName = null;
-    currentCustomerEmail = null;
-    currentCustomerFlatNumber = null;
-    currentCustomerMood = null;
-    currentChefName = null;
-    currentChefCode = null;
-    currentChefFlatNumber = null;
-    currentChefCuisine = null;
-    currentSociety = null;
-    orderCart = [];
-    allFoods = [];
-    allFoodsForFiltering = [];
-
-    localStorage.removeItem('societycraveSession');
-
-    document.getElementById('current-role').textContent = 'None';
-    document.body.classList.remove('role-selected');
-
-    document.getElementById('role-screen').style.display = 'flex';
-    document.getElementById('auth-screen').style.display = 'none';
-    showPanel('dashboard');
+    resetInMemoryAuthState();
+    clearStoredAuth();
+    returnToRoleSelection();
     showNotification('You have been logged out.', 'success');
 }
 
@@ -518,7 +656,21 @@ function debounce(func, delay) {
 }
 
 async function fetchJson(url, options = {}) {
-    const response = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...options });
+    const headers = new Headers(options.headers || {});
+    if (!headers.has('Content-Type') && options.body !== undefined) {
+        headers.set('Content-Type', 'application/json');
+    }
+
+    const accessToken = getStoredAccessToken();
+    if (accessToken && !headers.has('Authorization')) {
+        headers.set('Authorization', `Bearer ${accessToken}`);
+    }
+
+    const response = await fetch(url, { ...options, headers });
+    if (response.status === 401 && !url.startsWith('/api/auth/')) {
+        handleUnauthorizedSession();
+        throw new Error('Your session expired. Please login again.');
+    }
     if (!response.ok) {
         const text = await response.text();
         throw new Error(text || response.statusText);
@@ -1185,7 +1337,7 @@ function ensureChefFlatNumber() {
     if (currentChefFlatNumber && currentChefFlatNumber.trim()) {
         return currentChefFlatNumber.trim();
     }
-    const storedSession = localStorage.getItem('societycraveSession');
+    const storedSession = localStorage.getItem(SESSION_STORAGE_KEY);
     if (storedSession) {
         try {
             const session = JSON.parse(storedSession);
@@ -1194,7 +1346,7 @@ function ensureChefFlatNumber() {
                 return currentChefFlatNumber;
             }
         } catch {
-            localStorage.removeItem('societycraveSession');
+            clearStoredAuth();
         }
     }
     return null;
@@ -1273,11 +1425,18 @@ const debouncedFilter = debounce(filterAndDisplayMenu, 300);
 function setupHandlers() {
     const quickActionsToggle = document.getElementById('quick-actions-toggle');
     if (quickActionsToggle) {
-        quickActionsToggle.addEventListener('click', toggleQuickActionsMenu);
+        quickActionsToggle.addEventListener('click', event => {
+            event.stopPropagation();
+            toggleQuickActionsMenu();
+        });
     }
 
     document.querySelectorAll('[data-dropdown-view]').forEach(button => {
-        button.addEventListener('click', () => showPanel(button.dataset.dropdownView));
+        button.addEventListener('click', event => {
+            event.stopPropagation();
+            showPanel(button.dataset.dropdownView);
+            closeQuickActionsMenu();
+        });
     });
 
     document.addEventListener('click', event => {
