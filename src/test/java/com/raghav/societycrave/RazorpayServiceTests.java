@@ -55,4 +55,23 @@ class RazorpayServiceTests {
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("Razorpay is not enabled");
     }
+
+    @Test
+    void createGatewayOrderFailsClearlyWhenEnabledWithoutKeys() {
+        RazorpayProperties properties = new RazorpayProperties();
+        properties.setEnabled(true);
+        properties.setKeyId("");
+        properties.setKeySecret("");
+        properties.setCurrency("INR");
+
+        RazorpayService enabledWithoutKeys = new RazorpayService(properties);
+
+        assertThatThrownBy(() -> enabledWithoutKeys.createGatewayOrder(
+                new BigDecimal("499.99"),
+                "receipt-002",
+                Map.of("paymentId", "2")
+        ))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Razorpay keys are not configured");
+    }
 }

@@ -1,7 +1,6 @@
 package com.raghav.societycrave.service;
 
 import com.raghav.societycrave.config.RazorpayProperties;
-import com.razorpay.Order;
 import com.razorpay.RazorpayClient;
 import com.razorpay.RazorpayException;
 import com.razorpay.Utils;
@@ -16,6 +15,13 @@ import java.util.Objects;
 @Service
 public class RazorpayService {
 
+    public record GatewayOrderResult(
+            String gatewayOrderId,
+            long amountInPaise,
+            String currency
+    ) {
+    }
+
     private final RazorpayProperties razorpayProperties;
 
     public RazorpayService(RazorpayProperties razorpayProperties) {
@@ -26,7 +32,23 @@ public class RazorpayService {
         return razorpayProperties.isEnabled();
     }
 
-    public Order createGatewayOrder(BigDecimal amount, String receipt, Map<String, String> notes) {
+    public String getKeyId() {
+        return normalize(razorpayProperties.getKeyId());
+    }
+
+    public String getCurrency() {
+        return normalizedCurrency();
+    }
+
+    public long toPaise(BigDecimal amount) {
+        Objects.requireNonNull(amount, "amount must not be null");
+        return amount
+                .setScale(2, RoundingMode.HALF_UP)
+                .movePointRight(2)
+                .longValueExact();
+    }
+
+    public GatewayOrderResult createGatewayOrder(BigDecimal amount, String receipt, Map<String, String> notes) {
         requireEnabledAndConfigured();
 
         Objects.requireNonNull(amount, "amount must not be null");
@@ -38,14 +60,19 @@ public class RazorpayService {
             );
 
             JSONObject orderRequest = new JSONObject();
-            orderRequest.put("amount", convertAmountToPaise(amount));
+            orderRequest.put("amount", toPaise(amount));
             orderRequest.put("currency", normalizedCurrency());
             orderRequest.put("receipt", normalize(receipt));
             if (notes != null && !notes.isEmpty()) {
                 orderRequest.put("notes", new JSONObject(notes));
             }
 
-            return client.orders.create(orderRequest);
+            JSONObject createdOrder = client.orders.create(orderRequest).toJson();
+            return new GatewayOrderResult(
+                    createdOrder.getString("id"),
+                    createdOrder.getLong("amount"),
+                    createdOrder.getString("currency")
+            );
         } catch (RazorpayException exception) {
             throw new IllegalStateException("Unable to create Razorpay order", exception);
         }
@@ -79,13 +106,6 @@ public class RazorpayService {
     private String normalizedCurrency() {
         String currency = normalize(razorpayProperties.getCurrency());
         return currency.isBlank() ? "INR" : currency.toUpperCase();
-    }
-
-    private int convertAmountToPaise(BigDecimal amount) {
-        return amount
-                .setScale(2, RoundingMode.HALF_UP)
-                .movePointRight(2)
-                .intValueExact();
     }
 
     private String normalize(String value) {

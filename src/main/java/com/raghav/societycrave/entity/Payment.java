@@ -29,6 +29,12 @@ public class Payment {
 
     private Long orderId;
 
+    private String gatewayOrderId;
+
+    private String gatewayPaymentId;
+
+    private String gatewaySignature;
+
     @NotNull(message = "Amount is mandatory")
     @Column(nullable = false)
     private BigDecimal amount;
@@ -45,7 +51,8 @@ public class Payment {
     public Payment() {}
 
     public Payment(Long id, String residentName, String flatNumber, String residentEmail,
-                   String societyName, Long orderId, BigDecimal amount, LocalDate dueDate,
+                   String societyName, Long orderId, String gatewayOrderId, String gatewayPaymentId,
+                   String gatewaySignature, BigDecimal amount, LocalDate dueDate,
                    LocalDate paymentDate, String status, String paymentMethod) {
         this.id = id;
         this.residentName = residentName;
@@ -53,6 +60,9 @@ public class Payment {
         this.residentEmail = residentEmail;
         this.societyName = societyName;
         this.orderId = orderId;
+        this.gatewayOrderId = gatewayOrderId;
+        this.gatewayPaymentId = gatewayPaymentId;
+        this.gatewaySignature = gatewaySignature;
         this.amount = amount;
         this.dueDate = dueDate;
         this.paymentDate = paymentDate;
@@ -80,6 +90,15 @@ public class Payment {
 
     public Long getOrderId() { return orderId; }
     public void setOrderId(Long orderId) { this.orderId = orderId; }
+
+    public String getGatewayOrderId() { return gatewayOrderId; }
+    public void setGatewayOrderId(String gatewayOrderId) { this.gatewayOrderId = gatewayOrderId; }
+
+    public String getGatewayPaymentId() { return gatewayPaymentId; }
+    public void setGatewayPaymentId(String gatewayPaymentId) { this.gatewayPaymentId = gatewayPaymentId; }
+
+    public String getGatewaySignature() { return gatewaySignature; }
+    public void setGatewaySignature(String gatewaySignature) { this.gatewaySignature = gatewaySignature; }
 
     public BigDecimal getAmount() { return amount; }
     public void setAmount(BigDecimal amount) { this.amount = amount; }

@@ -1,6 +1,7 @@
 package com.raghav.societycrave.controller;
 
 import com.raghav.societycrave.entity.Payment;
+import com.raghav.societycrave.dto.payment.CreateRazorpayOrderResponse;
 import com.raghav.societycrave.security.JwtAuthenticatedUser;
 import com.raghav.societycrave.service.PaymentService;
 import org.springframework.http.HttpStatus;
@@ -63,6 +64,17 @@ public class PaymentController {
         requireCustomer(principal, "Only customers can create payments.");
         return paymentService.createPaymentForCustomer(
                 payment,
+                principal.societyName(),
+                requireResidentEmail(principal)
+        );
+    }
+
+    @PostMapping("/{paymentId}/razorpay/order")
+    public CreateRazorpayOrderResponse createRazorpayOrder(@PathVariable Long paymentId, Authentication authentication) {
+        JwtAuthenticatedUser principal = requireAuthenticatedUser(authentication);
+        requireCustomer(principal, "Only customers can create Razorpay orders.");
+        return paymentService.createGatewayOrderForCustomer(
+                paymentId,
                 principal.societyName(),
                 requireResidentEmail(principal)
         );

@@ -2,6 +2,7 @@ package com.raghav.societycrave.service;
 
 import com.raghav.societycrave.entity.FoodOrder;
 import com.raghav.societycrave.entity.Payment;
+import com.raghav.societycrave.dto.payment.CreateRazorpayOrderResponse;
 import com.raghav.societycrave.repository.FoodOrderRepository;
 import com.raghav.societycrave.repository.PaymentRepository;
 import org.springframework.http.HttpStatus;
@@ -17,10 +18,14 @@ public class PaymentService {
 
     private final PaymentRepository paymentRepository;
     private final FoodOrderRepository foodOrderRepository;
+    private final RazorpayService razorpayService;
 
-    public PaymentService(PaymentRepository paymentRepository, FoodOrderRepository foodOrderRepository) {
+    public PaymentService(PaymentRepository paymentRepository,
+                          FoodOrderRepository foodOrderRepository,
+                          RazorpayService razorpayService) {
         this.paymentRepository = paymentRepository;
         this.foodOrderRepository = foodOrderRepository;
+        this.razorpayService = razorpayService;
     }
 
     public List<Payment> getAllPayments() {
@@ -88,6 +93,47 @@ public class PaymentService {
         payment.setPaymentMethod(paymentRequest.getPaymentMethod());
         normalizePayment(payment);
         return paymentRepository.save(payment);
+    }
+
+    public CreateRazorpayOrderResponse createGatewayOrderForCustomer(Long paymentId, String societyName, String residentEmail) {
+        Payment payment = getPaymentByIdForSociety(paymentId, societyName);
+        enforceCustomerOwnership(payment, residentEmail);
+        ensureGatewayOrderCreationAllowed(payment);
+
+        String existingGatewayOrderId = normalize(payment.getGatewayOrderId());
+        if (!existingGatewayOrderId.isBlank()) {
+            return buildGatewayOrderResponse(payment, existingGatewayOrderId);
+        }
+
+        try {
+            RazorpayService.GatewayOrderResult gatewayOrder = razorpayService.createGatewayOrder(
+                    payment.getAmount(),
+                    "payment-" + payment.getId(),
+                    java.util.Map.of(
+                            "paymentId", String.valueOf(payment.getId()),
+                            "orderId", String.valueOf(payment.getOrderId()),
+                            "societyName", normalize(payment.getSocietyName()),
+                            "residentEmail", normalize(payment.getResidentEmail())
+                    )
+            );
+
+            payment.setGatewayOrderId(gatewayOrder.gatewayOrderId());
+            payment.setGatewayPaymentId(null);
+            payment.setGatewaySignature(null);
+            normalizePayment(payment);
+            paymentRepository.save(payment);
+
+            return new CreateRazorpayOrderResponse(
+                    payment.getId(),
+                    gatewayOrder.gatewayOrderId(),
+                    razorpayService.getKeyId(),
+                    gatewayOrder.amountInPaise(),
+                    gatewayOrder.currency(),
+                    payment.getStatus()
+            );
+        } catch (IllegalStateException exception) {
+            throw mapRazorpayException(exception);
+        }
     }
 
     public Payment updatePayment(Long id, Payment paymentDetails) {
@@ -197,6 +243,15 @@ public class PaymentService {
         if (payment.getPaymentMethod() != null) {
             payment.setPaymentMethod(payment.getPaymentMethod().trim());
         }
+        if (payment.getGatewayOrderId() != null) {
+            payment.setGatewayOrderId(payment.getGatewayOrderId().trim());
+        }
+        if (payment.getGatewayPaymentId() != null) {
+            payment.setGatewayPaymentId(payment.getGatewayPaymentId().trim());
+        }
+        if (payment.getGatewaySignature() != null) {
+            payment.setGatewaySignature(payment.getGatewaySignature().trim());
+        }
     }
 
     private FoodOrder getOrderForCustomerPaymentCreation(Long orderId, String societyName, String residentEmail) {
@@ -239,6 +294,40 @@ public class PaymentService {
         if (!paymentEmail.equalsIgnoreCase(principalEmail)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Customers can only view their own payments.");
         }
+    }
+
+    private void ensureGatewayOrderCreationAllowed(Payment payment) {
+        if (payment.getAmount() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Payment amount is required for Razorpay order creation.");
+        }
+
+        String status = normalize(payment.getStatus()).toUpperCase();
+        if (!status.equals("DUE") && !status.equals("PENDING")) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Razorpay order can only be created for DUE or PENDING payments."
+            );
+        }
+    }
+
+    private CreateRazorpayOrderResponse buildGatewayOrderResponse(Payment payment, String gatewayOrderId) {
+        return new CreateRazorpayOrderResponse(
+                payment.getId(),
+                gatewayOrderId,
+                razorpayService.getKeyId(),
+                razorpayService.toPaise(payment.getAmount()),
+                razorpayService.getCurrency(),
+                payment.getStatus()
+        );
+    }
+
+    private ResponseStatusException mapRazorpayException(IllegalStateException exception) {
+        String message = normalize(exception.getMessage());
+        if (message.equalsIgnoreCase("Razorpay is not enabled")
+                || message.equalsIgnoreCase("Razorpay keys are not configured")) {
+            return new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, message);
+        }
+        return new ResponseStatusException(HttpStatus.BAD_GATEWAY, message.isBlank() ? "Unable to create Razorpay order" : message);
     }
 
     private String requireSocietyScope(String societyName) {
