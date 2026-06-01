@@ -72,6 +72,7 @@ public class FoodController {
     @ResponseStatus(HttpStatus.CREATED)
     public Food createFood(@RequestBody Food food, Authentication authentication) {
         JwtAuthenticatedUser principal = requireAuthenticatedUser(authentication);
+        requireChef(principal);
         validateRequestedSociety(food.getSocietyName(), principal.societyName());
         return foodService.createFoodForProfile(food, resolveCurrentProfile(principal));
     }
@@ -81,6 +82,7 @@ public class FoodController {
                            @RequestBody Food food,
                            Authentication authentication) {
         JwtAuthenticatedUser principal = requireAuthenticatedUser(authentication);
+        requireChef(principal);
         return foodService.updateFoodForProfile(id, food, resolveCurrentProfile(principal));
     }
 
@@ -88,6 +90,7 @@ public class FoodController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteFood(@PathVariable Long id, Authentication authentication) {
         JwtAuthenticatedUser principal = requireAuthenticatedUser(authentication);
+        requireChef(principal);
         foodService.deleteFoodForProfile(id, resolveCurrentProfile(principal));
     }
 
@@ -118,6 +121,12 @@ public class FoodController {
                 principal.role(),
                 principal.societyName()
         );
+    }
+
+    private void requireChef(JwtAuthenticatedUser principal) {
+        if (!principal.isChef()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only chefs can mutate food.");
+        }
     }
 
     private void validateRequestedSociety(String requestedSociety, String authenticatedSociety) {

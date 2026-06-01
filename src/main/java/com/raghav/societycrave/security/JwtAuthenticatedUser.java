@@ -10,4 +10,11 @@ public record JwtAuthenticatedUser(
         String societyName,
         String chefCuisine
 ) {
+    public boolean isChef() {
+        if (role == null) {
+            return false;
+        }
+        String normalized = role.trim().toUpperCase();
+        return normalized.equals("CHEF") || normalized.equals("ROLE_CHEF");
+    }
 }

@@ -92,6 +92,23 @@ class FoodMutationScopingIntegrationTests {
     }
 
     @Test
+    void customerCannotCreateFood() throws Exception {
+        String customerToken = loginCustomerToken();
+
+        mockMvc.perform(post("/api/food")
+                        .header("Authorization", "Bearer " + customerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "Customer Dish",
+                                  "description": "Should be blocked",
+                                  "price": 150.00
+                                }
+                                """))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void sameSocietyFoodUpdateSucceedsAndKeepsTrustedChefFields() throws Exception {
         ChefRegistration chef = registerChef("Chef Update", "Gujarati", GREEN_SOCIETY);
         Food food = seedFood("Thepla", chef.displayName(), chef.flatNumber(), chef.cuisine(), GREEN_SOCIETY);
@@ -146,6 +163,25 @@ class FoodMutationScopingIntegrationTests {
     }
 
     @Test
+    void customerCannotUpdateFood() throws Exception {
+        ChefRegistration chef = registerChef("Chef Customer Block", "Gujarati", GREEN_SOCIETY);
+        Food food = seedFood("Customer Block Dish", chef.displayName(), chef.flatNumber(), chef.cuisine(), GREEN_SOCIETY);
+        String customerToken = loginCustomerToken();
+
+        mockMvc.perform(put("/api/food/{id}", food.getId())
+                        .header("Authorization", "Bearer " + customerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "Blocked Update",
+                                  "description": "Customers cannot update food",
+                                  "price": 175.00
+                                }
+                                """))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void sameSocietyDifferentChefCannotUpdateFood() throws Exception {
         ChefRegistration ownerChef = registerChef("Owner Chef", "North Indian", GREEN_SOCIETY);
         ChefRegistration otherChef = registerChef("Other Chef", "Chinese", GREEN_SOCIETY);
@@ -162,6 +198,19 @@ class FoodMutationScopingIntegrationTests {
                                 }
                                 """))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void customerCannotDeleteFood() throws Exception {
+        ChefRegistration chef = registerChef("Chef Delete Block", "Thai", GREEN_SOCIETY);
+        Food food = seedFood("Delete Block Dish", chef.displayName(), chef.flatNumber(), chef.cuisine(), GREEN_SOCIETY);
+        String customerToken = loginCustomerToken();
+
+        mockMvc.perform(delete("/api/food/{id}", food.getId())
+                        .header("Authorization", "Bearer " + customerToken))
+                .andExpect(status().isForbidden());
+
+        assertThat(foodRepository.existsById(food.getId())).isTrue();
     }
 
     @Test
@@ -259,6 +308,23 @@ class FoodMutationScopingIntegrationTests {
         food.setSlidingWindowMinutes(30);
         food.setAvailable(true);
         return foodRepository.save(food);
+    }
+
+    private String loginCustomerToken() throws Exception {
+        MvcResult result = mockMvc.perform(post("/api/auth/customers/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "email": "raghav@example.com",
+                                  "societyName": "Green Valley Residency",
+                                  "password": "Society123"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode json = objectMapper.readTree(result.getResponse().getContentAsString());
+        return json.get("accessToken").asText();
     }
 
     private record ChefRegistration(String token,
