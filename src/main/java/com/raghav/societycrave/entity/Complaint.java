@@ -25,6 +25,10 @@ public class Complaint {
 
     private String flatNumber;
 
+    private String residentEmail;
+
+    private String societyName;
+
     @Column(nullable = false)
     private String status = "OPEN"; // Default status
 
@@ -41,12 +45,15 @@ public class Complaint {
     public Complaint() {}
 
     public Complaint(Long id, String title, String description, String residentName, String flatNumber,
-                     String status, String assignedTo, LocalDateTime createdAt, LocalDateTime resolvedAt) {
+                     String residentEmail, String societyName, String status, String assignedTo,
+                     LocalDateTime createdAt, LocalDateTime resolvedAt) {
         this.id = id;
         this.title = title;
         this.description = description;
         this.residentName = residentName;
         this.flatNumber = flatNumber;
+        this.residentEmail = residentEmail;
+        this.societyName = societyName;
         this.status = status;
         this.assignedTo = assignedTo;
         this.createdAt = createdAt != null ? createdAt : LocalDateTime.now();
@@ -70,6 +77,12 @@ public class Complaint {
 
     public String getFlatNumber() { return flatNumber; }
     public void setFlatNumber(String flatNumber) { this.flatNumber = flatNumber; }
+
+    public String getResidentEmail() { return residentEmail; }
+    public void setResidentEmail(String residentEmail) { this.residentEmail = residentEmail; }
+
+    public String getSocietyName() { return societyName; }
+    public void setSocietyName(String societyName) { this.societyName = societyName; }
 
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
