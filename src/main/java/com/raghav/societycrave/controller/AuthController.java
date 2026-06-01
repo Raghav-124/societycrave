@@ -5,14 +5,18 @@ import com.raghav.societycrave.dto.auth.ChefLoginRequest;
 import com.raghav.societycrave.dto.auth.ChefRegisterRequest;
 import com.raghav.societycrave.dto.auth.CustomerLoginRequest;
 import com.raghav.societycrave.dto.auth.CustomerRegisterRequest;
+import com.raghav.societycrave.security.JwtAuthenticatedUser;
 import com.raghav.societycrave.service.AuthService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -44,5 +48,18 @@ public class AuthController {
     @PostMapping("/chefs/login")
     public AuthResponse loginChef(@Valid @RequestBody ChefLoginRequest request) {
         return authService.loginChef(request);
+    }
+
+    @GetMapping("/me")
+    public AuthResponse me(Authentication authentication) {
+        if (authentication == null || !(authentication.getPrincipal() instanceof JwtAuthenticatedUser principal)) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Missing or invalid JWT.");
+        }
+
+        return authService.getCurrentProfile(
+                principal.subject(),
+                principal.role(),
+                principal.societyName()
+        );
     }
 }

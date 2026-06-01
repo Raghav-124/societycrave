@@ -1,6 +1,8 @@
 package com.raghav.societycrave.dto.auth;
 
 public record AuthResponse(
+        String accessToken,
+        String tokenType,
         String role,
         String displayName,
         String email,
