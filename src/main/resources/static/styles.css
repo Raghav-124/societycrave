@@ -301,6 +301,13 @@ body::before {
     box-shadow: none;
 }
 
+button:disabled {
+    cursor: wait;
+    opacity: 0.68;
+    transform: none !important;
+    box-shadow: none;
+}
+
 .role-note,
 .muted-surface,
 .total-panel,
@@ -315,6 +322,10 @@ body::before {
     gap: 10px;
     padding: 18px;
     background: linear-gradient(180deg, #fff9f2, #f7eddc);
+}
+
+.auth-demo-note {
+    margin-top: 2px;
 }
 
 .role-note p {
@@ -370,6 +381,15 @@ label {
     font-size: 0.9rem;
     font-weight: 700;
     letter-spacing: 0.02em;
+}
+
+code {
+    padding: 0.14rem 0.4rem;
+    border-radius: 999px;
+    background: rgba(201, 109, 49, 0.12);
+    color: var(--accent-deep);
+    font-family: "JetBrains Mono", "SFMono-Regular", monospace;
+    font-size: 0.9em;
 }
 
 input,
@@ -521,6 +541,10 @@ textarea {
     box-shadow: var(--shadow-soft);
     display: grid;
     gap: 6px;
+}
+
+.dropdown-menu[hidden] {
+    display: none !important;
 }
 
 .dropdown-menu button {
