@@ -23,6 +23,12 @@ public class Payment {
     @Column(nullable = false)
     private String flatNumber;
 
+    private String residentEmail;
+
+    private String societyName;
+
+    private Long orderId;
+
     @NotNull(message = "Amount is mandatory")
     @Column(nullable = false)
     private BigDecimal amount;
@@ -38,11 +44,15 @@ public class Payment {
 
     public Payment() {}
 
-    public Payment(Long id, String residentName, String flatNumber, BigDecimal amount,
-                   LocalDate dueDate, LocalDate paymentDate, String status, String paymentMethod) {
+    public Payment(Long id, String residentName, String flatNumber, String residentEmail,
+                   String societyName, Long orderId, BigDecimal amount, LocalDate dueDate,
+                   LocalDate paymentDate, String status, String paymentMethod) {
         this.id = id;
         this.residentName = residentName;
         this.flatNumber = flatNumber;
+        this.residentEmail = residentEmail;
+        this.societyName = societyName;
+        this.orderId = orderId;
         this.amount = amount;
         this.dueDate = dueDate;
         this.paymentDate = paymentDate;
@@ -61,6 +71,15 @@ public class Payment {
 
     public String getFlatNumber() { return flatNumber; }
     public void setFlatNumber(String flatNumber) { this.flatNumber = flatNumber; }
+
+    public String getResidentEmail() { return residentEmail; }
+    public void setResidentEmail(String residentEmail) { this.residentEmail = residentEmail; }
+
+    public String getSocietyName() { return societyName; }
+    public void setSocietyName(String societyName) { this.societyName = societyName; }
+
+    public Long getOrderId() { return orderId; }
+    public void setOrderId(Long orderId) { this.orderId = orderId; }
 
     public BigDecimal getAmount() { return amount; }
     public void setAmount(BigDecimal amount) { this.amount = amount; }
