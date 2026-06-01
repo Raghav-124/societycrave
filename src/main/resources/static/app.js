@@ -17,7 +17,8 @@ let currentChefFlatNumber = null;
 let currentChefCuisine = null;
 let currentSociety = null;
 let orderCart = [];
-let allFoods = [];   
+let allFoods = [];
+let customerPaymentOrders = [];
 let customerAuthMode = 'login';
 let chefAuthMode = 'login';
 let isAuthSubmitting = false;
@@ -553,6 +554,7 @@ function enterApp() {
     }
     syncOrderIdentity();
     configureOrdersView();
+    configurePaymentsView();
     loadDashboard();
     loadMenu();
     loadOrders();
@@ -596,6 +598,158 @@ function syncOrderIdentity() {
     } else {
         customerField.readOnly = false;
         flatField.readOnly = false;
+    }
+}
+
+function configurePaymentsView() {
+    const paymentFormCard = document.getElementById('payment-form-card');
+    const paymentFormTitle = document.getElementById('payment-form-title');
+    const paymentFormNote = document.getElementById('payment-form-note');
+
+    if (currentRole === 'Chef') {
+        paymentFormCard.style.display = 'none';
+        paymentFormTitle.textContent = 'Record Payment';
+        paymentFormNote.textContent = 'Chefs can review same-society payment records, but only customers can create or manage them.';
+        clearPaymentForm();
+        return;
+    }
+
+    paymentFormCard.style.display = 'block';
+    paymentFormTitle.textContent = 'Record Payment';
+    paymentFormNote.textContent = 'Choose one of your orders to create a payment. Amount and status are derived from the linked order.';
+    clearPaymentForm();
+}
+
+function formatPaymentOrderOption(order) {
+    return `Order #${order.id} — ₹${Number(order.totalAmount || 0).toFixed(2)} — ${order.status || 'PLACED'}`;
+}
+
+function getSelectedPaymentOrder() {
+    const orderId = document.getElementById('payment-order-id').value;
+    if (!orderId) {
+        return null;
+    }
+    return customerPaymentOrders.find(order => String(order.id) === String(orderId)) || null;
+}
+
+function setPaymentDisplayValues({
+    residentName = currentCustomerName || '',
+    flatNumber = currentCustomerFlatNumber || '',
+    amount = '',
+    status = 'DUE',
+    paymentDate = ''
+} = {}) {
+    document.getElementById('payment-resident').value = residentName || '';
+    document.getElementById('payment-flat').value = flatNumber || '';
+    document.getElementById('payment-amount').value =
+        amount === '' || amount === null || amount === undefined ? '' : Number(amount).toFixed(2);
+    document.getElementById('payment-status').value = status || 'DUE';
+    document.getElementById('payment-date').value = paymentDate || '';
+}
+
+function syncPaymentIdentityFromOrderSelection() {
+    const selectedOrder = getSelectedPaymentOrder();
+    if (selectedOrder) {
+        setPaymentDisplayValues({
+            residentName: selectedOrder.customerName || currentCustomerName || '',
+            flatNumber: selectedOrder.flatNumber || currentCustomerFlatNumber || '',
+            amount: selectedOrder.totalAmount,
+            status: 'DUE',
+            paymentDate: ''
+        });
+        return;
+    }
+
+    setPaymentDisplayValues({
+        residentName: currentCustomerName || '',
+        flatNumber: currentCustomerFlatNumber || '',
+        amount: '',
+        status: 'DUE',
+        paymentDate: ''
+    });
+}
+
+function populatePaymentOrderSelect(selectedOrderId = '', { locked = false, legacy = false } = {}) {
+    const orderSelect = document.getElementById('payment-order-id');
+    const orderHelp = document.getElementById('payment-order-help');
+    const saveButton = document.getElementById('save-payment');
+    orderSelect.innerHTML = '';
+
+    if (currentRole !== 'Customer') {
+        const option = document.createElement('option');
+        option.value = '';
+        option.textContent = 'Customers create payments from their own orders';
+        orderSelect.appendChild(option);
+        orderSelect.disabled = true;
+        saveButton.disabled = true;
+        orderHelp.textContent = 'Chef accounts can view same-society payments, but payment creation stays customer-only.';
+        return;
+    }
+
+    if (locked) {
+        const selectedOrder = customerPaymentOrders.find(order => String(order.id) === String(selectedOrderId));
+        const option = document.createElement('option');
+        option.value = selectedOrderId ? String(selectedOrderId) : '';
+        option.textContent = selectedOrder
+            ? formatPaymentOrderOption(selectedOrder)
+            : legacy
+                ? 'Legacy payment (no linked order available)'
+                : `Order #${selectedOrderId}`;
+        orderSelect.appendChild(option);
+        orderSelect.value = option.value;
+        orderSelect.disabled = true;
+        saveButton.disabled = false;
+        orderHelp.textContent = selectedOrderId
+            ? 'Linked order is locked after payment creation.'
+            : 'This older payment does not have a linked order and can only update safe fields.';
+        return;
+    }
+
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = customerPaymentOrders.length
+        ? 'Select one of your orders'
+        : 'Create an order before recording payment';
+    orderSelect.appendChild(placeholder);
+
+    customerPaymentOrders.forEach(order => {
+        const option = document.createElement('option');
+        option.value = String(order.id);
+        option.textContent = formatPaymentOrderOption(order);
+        orderSelect.appendChild(option);
+    });
+
+    orderSelect.value = selectedOrderId ? String(selectedOrderId) : '';
+    orderSelect.disabled = customerPaymentOrders.length === 0;
+    saveButton.disabled = customerPaymentOrders.length === 0;
+    orderHelp.textContent = customerPaymentOrders.length
+        ? 'Amount and status come from the selected order. Payment status stays DUE until backend verification is added.'
+        : 'Create an order first, then come back here to record its payment.';
+
+    syncPaymentIdentityFromOrderSelection();
+}
+
+async function loadCustomerPaymentOrders() {
+    if (currentRole !== 'Customer') {
+        customerPaymentOrders = [];
+        return;
+    }
+    customerPaymentOrders = await fetchJson(api.orders);
+}
+
+function clearPaymentForm() {
+    const form = document.getElementById('payment-form');
+    form.reset();
+    delete form.dataset.editId;
+    document.getElementById('payment-form-title').textContent = 'Record Payment';
+    document.getElementById('payment-form-note').textContent = 'Choose one of your orders to create a payment. Amount and status are derived from the linked order.';
+    document.getElementById('save-payment').textContent = 'Save Payment';
+    document.getElementById('payment-due').value = '';
+    document.getElementById('payment-method').value = '';
+    if (currentRole === 'Customer') {
+        populatePaymentOrderSelect();
+    } else {
+        populatePaymentOrderSelect('', { locked: true, legacy: true });
     }
 }
 
@@ -737,6 +891,13 @@ async function loadOrders() {
     const tbody = document.getElementById('order-table');
     tbody.innerHTML = '';
     const societyOrders = orders.filter(order => (order.societyName || '').toLowerCase() === (currentSociety || '').toLowerCase());
+
+    if (currentRole === 'Customer') {
+        customerPaymentOrders = societyOrders;
+        if (!document.getElementById('payment-form').dataset.editId) {
+            populatePaymentOrderSelect();
+        }
+    }
 
     societyOrders.forEach(order => {
         const actions = currentRole === 'Chef'
@@ -922,36 +1083,51 @@ async function saveComplaint(event) {
 
 async function loadPayments() {
     const payments = await fetchJson(api.payments);
+    if (currentRole === 'Customer') {
+        await loadCustomerPaymentOrders();
+        if (!document.getElementById('payment-form').dataset.editId) {
+            populatePaymentOrderSelect();
+        }
+    }
     const tbody = document.getElementById('payment-table');
     tbody.innerHTML = '';
     payments.forEach(payment => {
+        const actions = currentRole === 'Chef'
+            ? []
+            : [
+                {
+                    label: 'Edit',
+                    onClick: () => fillPaymentForm(payment)
+                },
+                {
+                    label: 'Delete',
+                    danger: true,
+                    onClick: async () => { await fetchJson(`${api.payments}/${payment.id}`, { method: 'DELETE' }); loadPayments(); loadDashboard(); }
+                }
+            ];
         tbody.appendChild(createRow([
             payment.id,
             payment.residentName,
             payment.amount,
             payment.status
-        ], [
-            {
-                label: 'Edit',
-                onClick: () => fillPaymentForm(payment)
-            },
-            {
-                label: 'Delete',
-                danger: true,
-                onClick: async () => { await fetchJson(`${api.payments}/${payment.id}`, { method: 'DELETE' }); loadPayments(); loadDashboard(); }
-            }
-        ]));
+        ], actions));
     });
 }
 
 function fillPaymentForm(payment) {
-    document.getElementById('payment-resident').value = payment.residentName || '';
-    document.getElementById('payment-flat').value = payment.flatNumber || '';
-    document.getElementById('payment-amount').value = payment.amount || '';
+    setPaymentDisplayValues({
+        residentName: payment.residentName || '',
+        flatNumber: payment.flatNumber || '',
+        amount: payment.amount || '',
+        status: payment.status || 'DUE',
+        paymentDate: payment.paymentDate || ''
+    });
     document.getElementById('payment-due').value = payment.dueDate || '';
-    document.getElementById('payment-date').value = payment.paymentDate || '';
-    document.getElementById('payment-status').value = payment.status || 'DUE';
     document.getElementById('payment-method').value = payment.paymentMethod || '';
+    document.getElementById('payment-form-title').textContent = `Edit Payment #${payment.id}`;
+    document.getElementById('payment-form-note').textContent = 'Only payment method and due date can be changed after a payment is created.';
+    document.getElementById('save-payment').textContent = 'Update Payment';
+    populatePaymentOrderSelect(payment.orderId || '', { locked: true, legacy: !payment.orderId });
     document.getElementById('payment-form').dataset.editId = payment.id;
     showPanel('payments');
 }
@@ -959,24 +1135,41 @@ function fillPaymentForm(payment) {
 async function savePayment(event) {
     event.preventDefault();
     const id = event.target.dataset.editId;
-    const payment = {
-        residentName: document.getElementById('payment-resident').value,
-        flatNumber: document.getElementById('payment-flat').value,
-        amount: Number(document.getElementById('payment-amount').value),
-        dueDate: document.getElementById('payment-due').value || null,
-        paymentDate: document.getElementById('payment-date').value || null,
-        status: document.getElementById('payment-status').value,
-        paymentMethod: document.getElementById('payment-method').value
-    };
-    if (id) {
-        await fetchJson(`${api.payments}/${id}`, { method: 'PUT', body: JSON.stringify(payment) });
-        delete event.target.dataset.editId;
-    } else {
-        await fetchJson(api.payments, { method: 'POST', body: JSON.stringify(payment) });
+
+    if (currentRole === 'Chef') {
+        showNotification('Chefs can view payments, but only customers can create or manage them.', 'error');
+        return;
     }
-    event.target.reset();
-    loadPayments();
-    loadDashboard();
+
+    const orderId = document.getElementById('payment-order-id').value;
+    if (!id && !orderId) {
+        showNotification('Please select an order before recording a payment.', 'error');
+        return;
+    }
+
+    const payment = {
+        orderId: orderId ? Number(orderId) : null,
+        dueDate: document.getElementById('payment-due').value || null,
+        paymentMethod: document.getElementById('payment-method').value.trim() || null
+    };
+
+    try {
+        showLoading(true);
+        if (id) {
+            await fetchJson(`${api.payments}/${id}`, { method: 'PUT', body: JSON.stringify(payment) });
+            showNotification('Payment updated successfully!', 'success');
+        } else {
+            await fetchJson(api.payments, { method: 'POST', body: JSON.stringify(payment) });
+            showNotification('Payment recorded successfully!', 'success');
+        }
+        clearPaymentForm();
+        await loadPayments();
+        loadDashboard();
+    } catch (error) {
+        showNotification(`Error saving payment: ${extractErrorMessage(error)}`, 'error', 4500);
+    } finally {
+        showLoading(false);
+    }
 }
 
 async function loadMenu() {
@@ -1485,7 +1678,8 @@ function setupHandlers() {
     document.getElementById('refresh-complaints').addEventListener('click', loadComplaints);
 
     document.getElementById('payment-form').addEventListener('submit', savePayment);
-    document.getElementById('clear-payment').addEventListener('click', () => clearForm('payment-form'));
+    document.getElementById('clear-payment').addEventListener('click', clearPaymentForm);
+    document.getElementById('payment-order-id').addEventListener('change', syncPaymentIdentityFromOrderSelection);
     document.getElementById('refresh-payments').addEventListener('click', loadPayments);
     document.getElementById('logout-button').addEventListener('click', logout);
 }

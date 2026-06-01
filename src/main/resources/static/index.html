@@ -513,31 +513,37 @@
             </div>
 
             <div class="panel-grid">
-                <div class="form-card">
+                <div class="form-card" id="payment-form-card">
                     <div class="card-heading">
                         <span class="section-kicker">Record</span>
-                        <h3>Record Payment</h3>
+                        <h3 id="payment-form-title">Record Payment</h3>
                     </div>
+                    <p id="payment-form-note">Link a payment to one of your orders. The backend now derives amount and status from the linked order.</p>
                     <form id="payment-form">
+                        <label for="payment-order-id">Order</label>
+                        <select id="payment-order-id" required>
+                            <option value="">Select one of your orders</option>
+                        </select>
+                        <p id="payment-order-help">Choose an order first so the backend can lock the payment amount correctly.</p>
                         <label>Resident Name</label>
-                        <input type="text" id="payment-resident" required />
+                        <input type="text" id="payment-resident" required readonly />
                         <label>Flat Number</label>
-                        <input type="text" id="payment-flat" required />
+                        <input type="text" id="payment-flat" required readonly />
                         <label>Amount</label>
-                        <input type="number" step="0.01" id="payment-amount" required />
+                        <input type="number" step="0.01" id="payment-amount" required readonly />
                         <label>Due Date</label>
                         <input type="date" id="payment-due" />
                         <label>Payment Date</label>
-                        <input type="date" id="payment-date" />
+                        <input type="date" id="payment-date" readonly />
                         <label>Status</label>
-                        <select id="payment-status">
+                        <select id="payment-status" disabled>
                             <option>DUE</option>
                             <option>PAID</option>
                         </select>
                         <label>Payment Method</label>
                         <input type="text" id="payment-method" />
                         <div class="form-actions">
-                            <button type="submit">Save Payment</button>
+                            <button type="submit" id="save-payment">Save Payment</button>
                             <button type="button" id="clear-payment">Clear</button>
                         </div>
                     </form>
