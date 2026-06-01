@@ -119,7 +119,7 @@ class OrderCreationIdentityIntegrationTests {
     }
 
     @Test
-    void chefTokenCanStillCreateOrderButUsesJwtIdentityFields() throws Exception {
+    void chefTokenCannotCreateOrder() throws Exception {
         ChefTokenRegistration chefRegistration = registerChefToken();
 
         mockMvc.perform(post("/api/orders")
@@ -134,10 +134,7 @@ class OrderCreationIdentityIntegrationTests {
                                   "paymentMethod": "CARD"
                                 }
                                 """))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.customerName").value(chefRegistration.displayName()))
-                .andExpect(jsonPath("$.flatNumber").value(chefRegistration.flatNumber()))
-                .andExpect(jsonPath("$.societyName").value(GREEN_SOCIETY));
+                .andExpect(status().isForbidden());
     }
 
     private String loginCustomerToken() throws Exception {

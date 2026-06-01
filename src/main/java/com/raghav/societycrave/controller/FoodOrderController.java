@@ -54,6 +54,7 @@ public class FoodOrderController {
     @ResponseStatus(HttpStatus.CREATED)
     public FoodOrder createOrder(@RequestBody FoodOrder order, Authentication authentication) {
         JwtAuthenticatedUser principal = requireAuthenticatedUser(authentication);
+        requireCustomer(principal, "Only customers can create orders.");
         validateRequestedSociety(order.getSocietyName(), principal.societyName());
 
         AuthResponse profile = authService.getCurrentProfile(
@@ -74,6 +75,7 @@ public class FoodOrderController {
                                  @Valid @RequestBody FoodOrder orderDetails,
                                  Authentication authentication) {
         JwtAuthenticatedUser principal = requireAuthenticatedUser(authentication);
+        requireCustomer(principal, "Only customers can edit orders.");
         return foodOrderService.updateOrderForSociety(id, orderDetails, principal.societyName());
     }
 
@@ -83,6 +85,7 @@ public class FoodOrderController {
                                        @RequestParam(value = "acceptedBy", required = false) String acceptedBy,
                                        Authentication authentication) {
         JwtAuthenticatedUser principal = requireAuthenticatedUser(authentication);
+        requireStatusRole(principal, status);
         return foodOrderService.updateOrderStatusForSociety(id, status, acceptedBy, principal.societyName());
     }
 
@@ -90,6 +93,7 @@ public class FoodOrderController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteOrder(@PathVariable Long id, Authentication authentication) {
         JwtAuthenticatedUser principal = requireAuthenticatedUser(authentication);
+        requireCustomer(principal, "Only customers can delete orders.");
         foodOrderService.deleteOrderForSociety(id, principal.societyName());
     }
 
@@ -123,5 +127,26 @@ public class FoodOrderController {
 
     private String normalize(String value) {
         return value == null ? null : value.trim();
+    }
+
+    private void requireCustomer(JwtAuthenticatedUser principal, String message) {
+        if (!principal.isCustomer()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, message);
+        }
+    }
+
+    private void requireStatusRole(JwtAuthenticatedUser principal, String status) {
+        String normalizedStatus = normalize(status);
+        if (normalizedStatus == null || normalizedStatus.isBlank()) {
+            return;
+        }
+
+        String targetStatus = normalizedStatus.toUpperCase();
+        if ((targetStatus.equals("ACCEPTED") || targetStatus.equals("DELIVERED")) && !principal.isChef()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only chefs can accept or deliver orders.");
+        }
+        if (targetStatus.equals("CANCELLED") && !principal.isCustomer()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only customers can cancel orders.");
+        }
     }
 }

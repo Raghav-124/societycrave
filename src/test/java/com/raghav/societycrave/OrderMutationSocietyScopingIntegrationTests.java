@@ -95,6 +95,28 @@ class OrderMutationSocietyScopingIntegrationTests {
     }
 
     @Test
+    void chefCannotEditOrder() throws Exception {
+        FoodOrder order = seedOrder("Raghav Agrawal", "A-101", GREEN_SOCIETY, "PLACED", "Customer Order");
+        String token = loginChefToken();
+
+        mockMvc.perform(put("/api/orders/{id}", order.getId())
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "customerName": "Chef Intruder",
+                                  "flatNumber": "B-202",
+                                  "societyName": "%s",
+                                  "status": "PLACED",
+                                  "items": "Chef Edit Attempt",
+                                  "totalAmount": 210.00,
+                                  "paymentMethod": "CARD"
+                                }
+                                """.formatted(GREEN_SOCIETY)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void sameSocietyUpdateCannotMoveOrderToAnotherSociety() throws Exception {
         FoodOrder order = seedOrder("Raghav Agrawal", "A-101", GREEN_SOCIETY, "PLACED", "Same Society Items");
         String token = loginCustomerToken();
@@ -129,6 +151,18 @@ class OrderMutationSocietyScopingIntegrationTests {
     }
 
     @Test
+    void chefCannotDeleteOrder() throws Exception {
+        FoodOrder order = seedOrder("Raghav Agrawal", "A-101", GREEN_SOCIETY, "PLACED", "Keep Me");
+        String token = loginChefToken();
+
+        mockMvc.perform(delete("/api/orders/{id}", order.getId())
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isForbidden());
+
+        assertThat(foodOrderRepository.existsById(order.getId())).isTrue();
+    }
+
+    @Test
     void crossSocietyDeleteReturnsForbidden() throws Exception {
         FoodOrder order = seedOrder("Other Resident", "B-202", OTHER_SOCIETY, "PLACED", "Do Not Delete");
         String token = loginCustomerToken();
@@ -143,6 +177,62 @@ class OrderMutationSocietyScopingIntegrationTests {
     @Test
     void sameSocietyStatusUpdateSucceeds() throws Exception {
         FoodOrder order = seedOrder("Raghav Agrawal", "A-101", GREEN_SOCIETY, "PLACED", "Status Me");
+        String token = loginChefToken();
+
+        mockMvc.perform(put("/api/orders/{id}/status", order.getId())
+                        .header("Authorization", "Bearer " + token)
+                        .param("acceptedBy", "Meera Joshi")
+                        .param("status", "ACCEPTED"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("ACCEPTED"))
+                .andExpect(jsonPath("$.acceptedBy").value("Meera Joshi"))
+                .andExpect(jsonPath("$.societyName").value(GREEN_SOCIETY));
+    }
+
+    @Test
+    void chefCanUpdateAcceptedOrderToDelivered() throws Exception {
+        FoodOrder order = seedOrder("Raghav Agrawal", "A-101", GREEN_SOCIETY, "ACCEPTED", "Deliver Me");
+        order.setAcceptedBy("Meera Joshi");
+        foodOrderRepository.save(order);
+        String token = loginChefToken();
+
+        mockMvc.perform(put("/api/orders/{id}/status", order.getId())
+                        .header("Authorization", "Bearer " + token)
+                        .param("status", "DELIVERED"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("DELIVERED"))
+                .andExpect(jsonPath("$.acceptedBy").value("Meera Joshi"))
+                .andExpect(jsonPath("$.societyName").value(GREEN_SOCIETY));
+    }
+
+    @Test
+    void customerCannotUpdateOrderToAccepted() throws Exception {
+        FoodOrder order = seedOrder("Raghav Agrawal", "A-101", GREEN_SOCIETY, "PLACED", "Status Me");
+        String token = loginCustomerToken();
+
+        mockMvc.perform(put("/api/orders/{id}/status", order.getId())
+                        .header("Authorization", "Bearer " + token)
+                        .param("acceptedBy", "Meera Joshi")
+                        .param("status", "ACCEPTED"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void customerCannotUpdateOrderToDelivered() throws Exception {
+        FoodOrder order = seedOrder("Raghav Agrawal", "A-101", GREEN_SOCIETY, "ACCEPTED", "Status Me");
+        order.setAcceptedBy("Meera Joshi");
+        foodOrderRepository.save(order);
+        String token = loginCustomerToken();
+
+        mockMvc.perform(put("/api/orders/{id}/status", order.getId())
+                        .header("Authorization", "Bearer " + token)
+                        .param("status", "DELIVERED"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void customerCanCancelPlacedOrder() throws Exception {
+        FoodOrder order = seedOrder("Raghav Agrawal", "A-101", GREEN_SOCIETY, "PLACED", "Cancel Me");
         String token = loginCustomerToken();
 
         mockMvc.perform(put("/api/orders/{id}/status", order.getId())
@@ -154,13 +244,25 @@ class OrderMutationSocietyScopingIntegrationTests {
     }
 
     @Test
-    void crossSocietyStatusUpdateReturnsForbidden() throws Exception {
-        FoodOrder order = seedOrder("Other Resident", "B-202", OTHER_SOCIETY, "PLACED", "Wrong Society Status");
-        String token = loginCustomerToken();
+    void chefCannotCancelOrder() throws Exception {
+        FoodOrder order = seedOrder("Raghav Agrawal", "A-101", GREEN_SOCIETY, "PLACED", "Do Not Cancel");
+        String token = loginChefToken();
 
         mockMvc.perform(put("/api/orders/{id}/status", order.getId())
                         .header("Authorization", "Bearer " + token)
                         .param("status", "CANCELLED"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void crossSocietyStatusUpdateReturnsForbidden() throws Exception {
+        FoodOrder order = seedOrder("Other Resident", "B-202", OTHER_SOCIETY, "PLACED", "Wrong Society Status");
+        String token = loginChefToken();
+
+        mockMvc.perform(put("/api/orders/{id}/status", order.getId())
+                        .header("Authorization", "Bearer " + token)
+                        .param("status", "ACCEPTED")
+                        .param("acceptedBy", "Meera Joshi"))
                 .andExpect(status().isForbidden());
     }
 
@@ -199,6 +301,23 @@ class OrderMutationSocietyScopingIntegrationTests {
                         .content("""
                                 {
                                   "email": "raghav@example.com",
+                                  "societyName": "Green Valley Residency",
+                                  "password": "Society123"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode json = objectMapper.readTree(result.getResponse().getContentAsString());
+        return json.get("accessToken").asText();
+    }
+
+    private String loginChefToken() throws Exception {
+        MvcResult result = mockMvc.perform(post("/api/auth/chefs/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "chefCode": "CHEF-MEERA01",
                                   "societyName": "Green Valley Residency",
                                   "password": "Society123"
                                 }
