@@ -17,8 +17,8 @@ public class FoodService {
    
 
     // Get all foods
-    public List<Food> getAllFoods() {
-        return foodRepository.findAll();
+    public List<Food> getAllFoodsForSociety(String societyName) {
+        return foodRepository.findBySocietyNameIgnoreCaseOrderByChefNameAsc(societyName);
     }
 
     // Get available foods for a society

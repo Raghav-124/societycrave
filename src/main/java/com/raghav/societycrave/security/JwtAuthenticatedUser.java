@@ -3,6 +3,11 @@ package com.raghav.societycrave.security;
 public record JwtAuthenticatedUser(
         String subject,
         String role,
-        String societyName
+        String displayName,
+        String email,
+        String chefCode,
+        String flatNumber,
+        String societyName,
+        String chefCuisine
 ) {
 }

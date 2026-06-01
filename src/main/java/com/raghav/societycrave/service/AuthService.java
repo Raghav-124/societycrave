@@ -14,6 +14,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -187,10 +189,24 @@ public class AuthService {
     }
 
     private String createTokenForCustomer(User user) {
-        return jwtService.generateToken(user.getEmail(), "Customer", user.getSocietyName());
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("role", "Customer");
+        claims.put("displayName", user.getName());
+        claims.put("email", user.getEmail());
+        claims.put("flatNumber", user.getFlatNumber());
+        claims.put("societyName", user.getSocietyName());
+        return jwtService.generateToken(user.getEmail(), claims);
     }
 
     private String createTokenForChef(Chef chef) {
-        return jwtService.generateToken(chef.getChefCode(), "Chef", chef.getSocietyName());
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("role", "Chef");
+        claims.put("displayName", chef.getChefName());
+        claims.put("email", chef.getEmail());
+        claims.put("chefCode", chef.getChefCode());
+        claims.put("flatNumber", chef.getFlatNumber());
+        claims.put("societyName", chef.getSocietyName());
+        claims.put("chefCuisine", chef.getChefCuisine());
+        return jwtService.generateToken(chef.getChefCode(), claims);
     }
 }

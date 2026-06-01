@@ -12,6 +12,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.Map;
 
 @Service
@@ -26,16 +27,13 @@ public class JwtService {
         this.expirationMs = expirationMs;
     }
 
-    public String generateToken(String subject, String role, String societyName) {
+    public String generateToken(String subject, Map<String, Object> claims) {
         Date now = new Date();
         Date expiry = new Date(now.getTime() + expirationMs);
 
         return Jwts.builder()
                 .subject(subject)
-                .claims(Map.of(
-                        "role", role,
-                        "societyName", societyName
-                ))
+                .claims(new HashMap<>(claims))
                 .issuedAt(now)
                 .expiration(expiry)
                 .signWith(signingKey)
@@ -56,6 +54,26 @@ public class JwtService {
 
     public String extractSocietyName(String token) {
         return extractAllClaims(token).get("societyName", String.class);
+    }
+
+    public String extractDisplayName(String token) {
+        return extractAllClaims(token).get("displayName", String.class);
+    }
+
+    public String extractEmail(String token) {
+        return extractAllClaims(token).get("email", String.class);
+    }
+
+    public String extractChefCode(String token) {
+        return extractAllClaims(token).get("chefCode", String.class);
+    }
+
+    public String extractFlatNumber(String token) {
+        return extractAllClaims(token).get("flatNumber", String.class);
+    }
+
+    public String extractChefCuisine(String token) {
+        return extractAllClaims(token).get("chefCuisine", String.class);
     }
 
     public boolean validateToken(String token) {

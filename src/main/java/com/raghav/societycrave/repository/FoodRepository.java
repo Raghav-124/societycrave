@@ -6,6 +6,8 @@ import java.util.List;
 
 public interface FoodRepository extends JpaRepository<Food, Long> {
 
+    List<Food> findBySocietyNameIgnoreCaseOrderByChefNameAsc(String societyName);
+
     // Get all available foods, ordered by chef name
     List<Food> findByAvailableTrueOrderByChefNameAsc();
 
