@@ -3,6 +3,8 @@ package com.raghav.societycrave.config;
 import com.raghav.societycrave.security.JwtAuthenticationFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -14,6 +16,7 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 @Configuration
@@ -31,6 +34,16 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(Customizer.withDefaults())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .exceptionHandling(exceptions -> exceptions
+                        .authenticationEntryPoint((request, response, authException) -> {
+                            response.setStatus(HttpStatus.UNAUTHORIZED.value());
+                            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+                            response.setCharacterEncoding(StandardCharsets.UTF_8.name());
+                            response.getWriter().write("""
+                                    {"status":401,"message":"Authentication required."}
+                                    """);
+                        })
+                )
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers(
                                 "/",
@@ -40,9 +53,25 @@ public class SecurityConfig {
                                 "/favicon.ico",
                                 "/assets/**"
                         ).permitAll()
-                        .requestMatchers("/api/health", "/api/auth/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/health").permitAll()
+                        .requestMatchers(HttpMethod.POST,
+                                "/api/auth/customers/register",
+                                "/api/auth/customers/login",
+                                "/api/auth/chefs/register",
+                                "/api/auth/chefs/login"
+                        ).permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        .anyRequest().permitAll()
+                        .requestMatchers(
+                                "/api/auth/me",
+                                "/api/orders/**",
+                                "/api/complaints/**",
+                                "/api/payments/**",
+                                "/api/food/**",
+                                "/api/users/**",
+                                "/api/chefs/**",
+                                "/api/dev/admin/**"
+                        ).authenticated()
+                        .anyRequest().denyAll()
                 )
                 .formLogin(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
