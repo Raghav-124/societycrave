@@ -1,9 +1,12 @@
 package com.raghav.societycrave.controller;
 
+import com.raghav.societycrave.dto.payment.VerifyRazorpayPaymentRequest;
+import com.raghav.societycrave.dto.payment.VerifyRazorpayPaymentResponse;
 import com.raghav.societycrave.entity.Payment;
 import com.raghav.societycrave.dto.payment.CreateRazorpayOrderResponse;
 import com.raghav.societycrave.security.JwtAuthenticatedUser;
 import com.raghav.societycrave.service.PaymentService;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -75,6 +78,20 @@ public class PaymentController {
         requireCustomer(principal, "Only customers can create Razorpay orders.");
         return paymentService.createGatewayOrderForCustomer(
                 paymentId,
+                principal.societyName(),
+                requireResidentEmail(principal)
+        );
+    }
+
+    @PostMapping("/{paymentId}/razorpay/verify")
+    public VerifyRazorpayPaymentResponse verifyRazorpayPayment(@PathVariable Long paymentId,
+                                                               @Valid @RequestBody VerifyRazorpayPaymentRequest request,
+                                                               Authentication authentication) {
+        JwtAuthenticatedUser principal = requireAuthenticatedUser(authentication);
+        requireCustomer(principal, "Only customers can verify Razorpay payments.");
+        return paymentService.verifyGatewayPaymentForCustomer(
+                paymentId,
+                request,
                 principal.societyName(),
                 requireResidentEmail(principal)
         );

@@ -3,12 +3,15 @@ package com.raghav.societycrave.service;
 import com.raghav.societycrave.entity.FoodOrder;
 import com.raghav.societycrave.entity.Payment;
 import com.raghav.societycrave.dto.payment.CreateRazorpayOrderResponse;
+import com.raghav.societycrave.dto.payment.VerifyRazorpayPaymentRequest;
+import com.raghav.societycrave.dto.payment.VerifyRazorpayPaymentResponse;
 import com.raghav.societycrave.repository.FoodOrderRepository;
 import com.raghav.societycrave.repository.PaymentRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @Service
@@ -131,6 +134,42 @@ public class PaymentService {
                     gatewayOrder.currency(),
                     payment.getStatus()
             );
+        } catch (IllegalStateException exception) {
+            throw mapRazorpayException(exception);
+        }
+    }
+
+    public VerifyRazorpayPaymentResponse verifyGatewayPaymentForCustomer(Long paymentId,
+                                                                         VerifyRazorpayPaymentRequest request,
+                                                                         String societyName,
+                                                                         String residentEmail) {
+        Payment payment = getPaymentByIdForSociety(paymentId, societyName);
+        enforceCustomerOwnership(payment, residentEmail);
+        ensureGatewayVerificationAllowed(payment, request.razorpayOrderId(), request.razorpayPaymentId());
+
+        if (isPaid(payment)) {
+            return buildVerifyResponse(payment, true);
+        }
+
+        try {
+            boolean valid = razorpayService.verifySignature(
+                    request.razorpayOrderId(),
+                    request.razorpayPaymentId(),
+                    request.razorpaySignature()
+            );
+
+            if (!valid) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Razorpay signature verification failed.");
+            }
+
+            payment.setStatus("PAID");
+            payment.setGatewayPaymentId(request.razorpayPaymentId());
+            payment.setGatewaySignature(request.razorpaySignature());
+            payment.setPaymentDate(LocalDate.now());
+            normalizePayment(payment);
+            paymentRepository.save(payment);
+
+            return buildVerifyResponse(payment, true);
         } catch (IllegalStateException exception) {
             throw mapRazorpayException(exception);
         }
@@ -321,6 +360,43 @@ public class PaymentService {
         );
     }
 
+    private VerifyRazorpayPaymentResponse buildVerifyResponse(Payment payment, boolean verified) {
+        return new VerifyRazorpayPaymentResponse(
+                payment.getId(),
+                payment.getStatus(),
+                payment.getGatewayOrderId(),
+                payment.getGatewayPaymentId(),
+                verified
+        );
+    }
+
+    private void ensureGatewayVerificationAllowed(Payment payment, String requestedGatewayOrderId, String requestedGatewayPaymentId) {
+        String savedGatewayOrderId = normalize(payment.getGatewayOrderId());
+        if (savedGatewayOrderId.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Payment does not have a Razorpay order to verify.");
+        }
+
+        if (!savedGatewayOrderId.equals(normalize(requestedGatewayOrderId))) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Razorpay order id does not match the saved payment gateway order.");
+        }
+
+        if (isPaid(payment)) {
+            String existingGatewayPaymentId = normalize(payment.getGatewayPaymentId());
+            if (existingGatewayPaymentId.isBlank()) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Paid payment is missing verified Razorpay payment reference.");
+            }
+            if (!existingGatewayPaymentId.equals(normalize(requestedGatewayPaymentId))) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Payment is already verified with a different Razorpay payment id.");
+            }
+            return;
+        }
+
+        String status = normalize(payment.getStatus()).toUpperCase();
+        if (!status.equals("DUE") && !status.equals("PENDING")) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only DUE or PENDING payments can be verified.");
+        }
+    }
+
     private ResponseStatusException mapRazorpayException(IllegalStateException exception) {
         String message = normalize(exception.getMessage());
         if (message.equalsIgnoreCase("Razorpay is not enabled")
@@ -328,6 +404,10 @@ public class PaymentService {
             return new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, message);
         }
         return new ResponseStatusException(HttpStatus.BAD_GATEWAY, message.isBlank() ? "Unable to create Razorpay order" : message);
+    }
+
+    private boolean isPaid(Payment payment) {
+        return normalize(payment.getStatus()).equalsIgnoreCase("PAID");
     }
 
     private String requireSocietyScope(String societyName) {

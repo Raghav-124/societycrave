@@ -74,4 +74,15 @@ class RazorpayServiceTests {
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("Razorpay keys are not configured");
     }
+
+    @Test
+    void verifySignatureFailsClearlyWhenDisabled() {
+        assertThatThrownBy(() -> razorpayService.verifySignature(
+                "order_123",
+                "pay_123",
+                "sig_123"
+        ))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Razorpay is not enabled");
+    }
 }
