@@ -1,0 +1,24 @@
+.DS_Store
+node_modules/
+frontend/dist/
+backend/target/
+.env
+*.log
+
+# Environment secrets
+.env.*
+!.env.example
+
+# IDE and OS files
+.idea/
+.vscode/
+.DS_Store
+
+# Build outputs
+**/target/
+**/dist/
+**/node_modules/
+.angular/
+coverage/
+.tmp/
+.cache/

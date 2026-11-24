@@ -1,0 +1,20 @@
+import { CommonModule } from '@angular/common';
+import { Component, inject, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
+import { HttpClient } from '@angular/common/http';
+import { ApiService, Membership } from '../services/api.service';
+
+@Component({
+ standalone:true, imports:[CommonModule,FormsModule,RouterLink],
+ template:`<main class="chef-shell"><header><a routerLink="/" class="brand"><span class="brand-mark">SC</span> SocietyCrave</a></header><section><p class="eyebrow">Chef onboarding</p><h1 class="serif">Share your kitchen with your society.</h1><form (ngSubmit)="submit()" #form="ngForm"><label>Chef display name<input name="displayName" [(ngModel)]="displayName" required maxlength="255"></label><label>Profile photograph URL (optional)<input name="profilePhotoUrl" [(ngModel)]="profilePhotoUrl" maxlength="2048"></label><label>Introduction / bio<textarea name="bio" [(ngModel)]="bio" required maxlength="2000"></textarea></label><label>Cuisine specialties<input name="cuisineSpecialties" [(ngModel)]="cuisineSpecialties" required maxlength="1000" placeholder="North Indian, Bengali"></label><label>Food categories<input name="foodCategories" [(ngModel)]="foodCategories" required maxlength="1000" placeholder="Thali, Snacks, Desserts"></label><label>Pickup instructions<textarea name="pickupInstructions" [(ngModel)]="pickupInstructions" required maxlength="1000"></textarea></label><label *ngIf="memberships().length > 1">Active society<select name="societyId" [(ngModel)]="societyId" required><option [ngValue]="null">Select your society</option><option *ngFor="let membership of memberships()" [ngValue]="membership.societyId">{{ membership.societyId }}</option></select></label><p class="membership-note" *ngIf="memberships().length === 1">Society association: {{ societyId }}</p><p class="membership-note" *ngIf="memberships().length === 0">Active society membership required.</p><p class="error" *ngIf="error">{{error}}</p><button class="submit" [disabled]="saving || form.invalid">{{saving?'Saving…':'Create chef profile'}}</button></form></section></main>`,
+ styles:[`:host{display:block}.chef-shell{min-height:100vh;padding:30px}.chef-shell header{max-width:900px;margin:auto}.brand{display:flex;align-items:center;gap:9px;font-weight:800}.brand-mark{background:#bd2f2f;color:#fff;border-radius:9px;padding:7px 5px;font-size:.7rem}.chef-shell section{width:min(680px,100%);margin:60px auto}.chef-shell h1{font-size:3.2rem;margin:12px 0 30px}.chef-shell form{display:grid;gap:16px}.chef-shell label{display:grid;gap:7px;font-weight:700}.chef-shell input,.chef-shell textarea{width:100%;box-sizing:border-box;border:1px solid #eadfd8;border-radius:9px;padding:13px;font:inherit}.chef-shell textarea{min-height:100px}.membership-note{color:#756a66}.error{color:#8d2023}.submit{border:0;border-radius:9px;background:#bd2f2f;color:#fff;padding:14px;font-weight:700;cursor:pointer}.submit:disabled{opacity:.55}`]
+})
+export class ChefPage {
+ private readonly http=inject(HttpClient);
+ private readonly api=inject(ApiService);
+ readonly memberships=signal<Membership[]>([]);
+ societyId: string|null=null;
+ constructor(){this.api.activeMemberships().subscribe(memberships=>{const active=memberships.filter(m=>m.status==='ACTIVE');this.memberships.set(active);if(active.length===1)this.societyId=active[0].societyId;});} displayName='';profilePhotoUrl='';bio='';cuisineSpecialties='';foodCategories='';pickupInstructions='';saving=false;error='';
+ submit(){this.saving=true;this.error='';this.http.post('/api/chefs',{societyId:this.societyId,displayName:this.displayName,profilePhotoUrl:this.profilePhotoUrl||null,bio:this.bio,cuisineSpecialties:this.cuisineSpecialties,foodCategories:this.foodCategories,pickupInstructions:this.pickupInstructions},{withCredentials:true}).subscribe({next:()=>{this.saving=false;this.error='';},error:()=>{this.saving=false;this.error='We could not create your chef profile.';}})}
+}

@@ -1,0 +1,36 @@
+spring:
+  application:
+    name: oursociety
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/oursociety}
+    username: ${DB_USERNAME:raghavagrawal}
+    password: ${DB_PASSWORD:}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID:}
+            client-secret: ${GOOGLE_CLIENT_SECRET:}
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+            scope: openid,profile,email
+server:
+  port: ${PORT:8080}
+  servlet:
+    session:
+      cookie:
+        http-only: true
+        same-site: lax
+        secure: ${COOKIE_SECURE:false}
+app:
+  frontend-origin: ${FRONTEND_ORIGIN:http://localhost:4200}
+  oauth:
+    success-redirect: ${OAUTH_SUCCESS_REDIRECT:http://localhost:4200/auth/callback}
+    failure-redirect: ${OAUTH_FAILURE_REDIRECT:http://localhost:4200/auth/callback}
+logging:
+  level:
+    com.oursociety: INFO
